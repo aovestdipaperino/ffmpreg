@@ -7,7 +7,6 @@ engine with a focus on explicit pipelines and developer control.
 
 [Sponsoring](#sponsoring) | [License](/LICENSE) | [Discord](https://discord.gg/eF7WgdSc2v)
 
-
 ## Installation
 
 To install the command-line tool, run:
@@ -225,24 +224,33 @@ println!("Frame rate: {}/{}", format.framerate_num, format.framerate_den);
 - `--apply`: add transform to pipeline (multiple allowed).
 - `--codec`: select output codec (default matches input).
 
-
 ## Sponsoring
 
 FFmpReg is an open-source project released under the [Apache 2.0](/LICENSE) License,
 free for any use, including commercial.
 A permissive license helps the project grow and be useful for everyone.
 
-This project takes a huge amount of work, 
+This project takes a huge amount of work,
 studying codec algorithms and implementing them from scratch.
 
 Your support helps cover internet, energy, and tools,
 and keeps me coding full-time for the community ^-^
 
-If you decide on a one-time contribution of $500 or more, and there’s something I can help you with, please let me know!  
+If you decide on a one-time contribution of $500 or more, and there’s something I can help you with, please let me know!
 
 [Support me on Ko-fi](https://ko-fi.com/yazaldefilimone)
 
+## Versioning
 
+FFmpReg uses `MAJOR.MINOR.PATCH`.
+
+- **MAJOR**: incompatible API changes or major new features
+- **MINOR**: new features compatible with existing APIs
+- **PATCH**: bug fixes or small adjustments
+
+Pre-1.0 releases are functional but APIs may change.
+1.0 marks API stability and includes minimum beta features.
+Release tags reflect tested versions; dev branches evolve faster.
 
 ## Goals
 

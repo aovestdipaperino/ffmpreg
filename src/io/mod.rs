@@ -1,5 +1,6 @@
 mod cursor;
 mod file;
+mod file_type;
 mod reader;
 mod seek;
 pub mod stdio;
@@ -7,12 +8,13 @@ mod writer;
 
 pub use cursor::Cursor;
 pub use file::File;
+pub use file_type::*;
 pub use reader::{
-	BufferedReader, BufferedWriter, DEFAULT_BUFFER_SIZE, MediaRead, ReadPrimitives, StdReadAdapter,
+	BinaryRead, BufferedReader, BufferedWriter, DEFAULT_BUFFER_SIZE, MediaRead, StdReadAdapter,
 };
 
 pub use seek::{MediaSeek, SeekFrom, SeekableReader, SeekableWriter, StdSeekAdapter};
-pub use writer::{MediaWrite, StdWriteAdapter, WritePrimitives};
+pub use writer::{BinaryWrite, MediaWrite, StdWriteAdapter};
 
 #[derive(Debug)]
 pub enum ErrorKind {

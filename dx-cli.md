@@ -50,3 +50,22 @@ CLI DX
   - Command:
     $ ffmpreg -i input.wav -o output.wav --apply gain=2.0 --apply normalize
   - Output: audio amplified and normalized
+
+```rs
+INPUT      otonoke.mp3      3:15    [48kHz stereo 16-bit 132 kb/s]   3.7 MiB
+└─ track=0  audio  mp3        fltp
+
+INPUT      sparkle.wav      0:42    [44.1kHz mono 16-bit 1411 kb/s]  4.5 MiB
+└─ track=0  audio  pcm_s16le
+
+ENCODE     otonoke.flac    [48kHz stereo 24-bit]   flac
+└─ track=0  audio  s32
+└─ transforms: resample=48kHz
+
+ENCODE     sparkle.flac    [44.1kHz mono 24-bit]   flac
+└─ track=0  audio  s32
+└─ transforms: resample=44.1kHz
+
+DONE       otonoke.flac    37.4 MiB   1566 kb/s   speed=344x   overhead=0.02%
+DONE       sparkle.flac    4.5 MiB    1411 kb/s   speed=360x   overhead=0.01%
+```

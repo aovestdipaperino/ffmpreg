@@ -1,43 +1,48 @@
+use super::format::{WavFormat, WavMetadata};
 use super::header::WavHeader;
-use super::{WavFormat, WavMetadata};
+use crate::container::constants::CHUNK_SIZE_LIMIT;
+use crate::core::Demuxer;
 use crate::core::frame::Channels;
 use crate::core::packet::Packet;
-use crate::core::{Demuxer, stream, time};
-use crate::io::{MediaRead, ReadPrimitives};
+use crate::core::stream::{Stream, Streams};
+use crate::core::time::Time;
+use crate::io::{BinaryRead, MediaRead};
 use crate::{error, message::Result};
 
 pub struct WavDemuxer<R: MediaRead> {
 	reader: R,
 	format: WavFormat,
-	streams: stream::Streams,
+	streams: Streams,
 	metadata: WavMetadata,
-	data_remaining: u64,
+	remaining_bytes: u64,
+	samples_read: u64,
 	packet_count: u64,
-	sample_position: u64,
+	time: Time,
 }
 
 impl<R: MediaRead> WavDemuxer<R> {
-	const CHUNK_SIZE_LIMIT: usize = 65536;
 
 	pub fn new(mut reader: R) -> Result<Self> {
 		let (header, metadata, data_size) = Self::read_wav_and_find_data(&mut reader)?;
 		header.validate()?;
+		let mut streams = Streams::new_empty();
 
 		let format = header.to_format();
-
-		let codec_name = format.to_codec_string().to_string();
-		let time = time::Time::new(1, header.sample_rate);
-		let stream = stream::Stream::new(0, 0, stream::StreamKind::Audio, codec_name, time);
-		let streams = stream::Streams::new(vec![stream]);
+		let time = Time::new(1, header.sample_rate)?;
+		let codec = format.to_codec_string().to_string();
+		let stream_id = streams.next_id();
+		let stream = Stream::new_audio(stream_id, codec, time);
+		streams.add(stream);
 
 		Ok(Self {
 			reader,
 			format,
 			streams,
 			metadata,
-			data_remaining: data_size,
+			remaining_bytes: data_size,
+			samples_read: 0,
 			packet_count: 0,
-			sample_position: 0,
+			time,
 		})
 	}
 
@@ -46,14 +51,7 @@ impl<R: MediaRead> WavDemuxer<R> {
 		let _file_size = reader.read_u32_le()?;
 		Self::check_fourcc(reader, "WAVE")?;
 
-		let mut header = WavHeader {
-			channels: Channels::Mono,
-			sample_rate: 0,
-			byte_rate: 0,
-			block_align: 0,
-			bits_per_sample: 0,
-			format_code: 0,
-		};
+		let mut header = WavHeader::default();
 		let mut metadata = WavMetadata::new();
 
 		loop {
@@ -75,16 +73,14 @@ impl<R: MediaRead> WavDemuxer<R> {
 		}
 
 		header.format_code = reader.read_u16_le()?;
-		let channel_count = reader.read_u16_le()? as u8;
-		header.channels = Channels::from_count(channel_count);
+		header.channels = Channels::from_count(reader.read_u16_le()? as u8);
 		header.sample_rate = reader.read_u32_le()?;
 		header.byte_rate = reader.read_u32_le()?;
 		header.block_align = reader.read_u16_le()?;
 		header.bits_per_sample = reader.read_u16_le()?;
 
-		let remaining = chunk_size - 16;
-		if remaining > 0 {
-			Self::skip_bytes(reader, remaining)?;
+		if chunk_size > 16 {
+			Self::skip_bytes(reader, chunk_size - 16)?;
 		}
 		Ok(())
 	}
@@ -99,17 +95,16 @@ impl<R: MediaRead> WavDemuxer<R> {
 			return Self::skip_bytes(reader, chunk_size - 4);
 		}
 
-		let mut position = 4u64;
-		while position + 8 <= chunk_size {
+		let mut pos = 4u64;
+		while pos + 8 <= chunk_size {
 			let id = Self::read_fourcc(reader)?;
 			let size = reader.read_u32_le()? as u64;
-			position += 8;
+			pos += 8;
 
 			let data = Self::read_bytes(reader, size)?;
-			position += size;
+			pos += size;
 
 			let value = String::from_utf8_lossy(&data).trim_end_matches('\0').to_string();
-
 			match id.as_str() {
 				"IART" => metadata.set("artist", value),
 				"INAM" => metadata.set("title", value),
@@ -123,7 +118,7 @@ impl<R: MediaRead> WavDemuxer<R> {
 
 			if size % 2 == 1 {
 				reader.read_u8()?;
-				position += 1;
+				pos += 1;
 			}
 		}
 		Ok(())
@@ -149,41 +144,41 @@ impl<R: MediaRead> WavDemuxer<R> {
 		Ok(buf)
 	}
 
-	fn skip_bytes(reader: &mut R, size: u64) -> Result<()> {
-		let mut buf = vec![0u8; size as usize];
-		reader.read_exact(&mut buf)?;
+	fn skip_bytes(reader: &mut R, mut size: u64) -> Result<()> {
+		const BUF_SIZE: usize = 8192;
+		let mut buf = [0u8; BUF_SIZE];
+		while size > 0 {
+			let read_size = std::cmp::min(size, BUF_SIZE as u64) as usize;
+			reader.read_exact(&mut buf[..read_size])?;
+			size -= read_size as u64;
+		}
 		Ok(())
 	}
 
 	pub fn read_packet(&mut self) -> Result<Option<Packet>> {
-		if self.data_remaining == 0 {
+		if self.remaining_bytes == 0 {
 			return Ok(None);
 		}
 
 		let block_align = self.format.block_align() as u64;
-		let max_chunk = (Self::CHUNK_SIZE_LIMIT as u64 / block_align) * block_align;
-		let chunk_size = std::cmp::min(self.data_remaining, max_chunk) as usize;
+		let max_chunk = (CHUNK_SIZE_LIMIT as u64 / block_align) * block_align;
+		let chunk_size = std::cmp::min(self.remaining_bytes, max_chunk) as usize;
+
 		let mut data = vec![0u8; chunk_size];
 		let bytes_read = self.reader.read(&mut data)?;
-
 		if bytes_read == 0 {
 			return Ok(None);
 		}
 
 		data.truncate(bytes_read);
-		self.data_remaining -= bytes_read as u64;
+		self.remaining_bytes -= bytes_read as u64;
 
-		let time = time::Time::new(1, self.format.sample_rate);
-		let packet = Packet::new(data, 0, time).with_pts(self.sample_position as i64);
+		let packet = Packet::new(data, 0, self.time).with_pts(self.samples_read as i64);
 
-		self.sample_position += (bytes_read / self.format.bytes_per_frame()) as u64;
+		self.samples_read += (bytes_read / self.format.bytes_per_frame()) as u64;
 		self.packet_count += 1;
 
 		Ok(Some(packet))
-	}
-
-	pub fn read_audio_packet(&mut self) -> Result<Option<Packet>> {
-		self.read_packet()
 	}
 
 	pub fn format(&self) -> WavFormat {
@@ -195,7 +190,7 @@ impl<R: MediaRead> WavDemuxer<R> {
 }
 
 impl<R: MediaRead> Demuxer for WavDemuxer<R> {
-	fn streams(&self) -> &stream::Streams {
+	fn streams(&self) -> &Streams {
 		&self.streams
 	}
 	fn read_packet(&mut self) -> Result<Option<Packet>> {

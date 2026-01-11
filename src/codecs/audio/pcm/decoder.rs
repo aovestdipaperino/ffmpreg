@@ -1,4 +1,4 @@
-use crate::container::wav::WavFormat;
+use crate::container::wav::format::WavFormat;
 use crate::core::frame::{AudioFormat, Channels, Frame, FrameAudio};
 use crate::core::packet::Packet;
 use crate::core::traits::Decoder;
@@ -38,7 +38,6 @@ impl Decoder for PcmDecoder {
 		let audio = FrameAudio::new(packet.data, self.sample_rate, self.channels, audio_format);
 		let audio = audio.with_nb_samples(nb_samples);
 
-		// let time = Time::new(1, self.sample_rate);
 		let frame = Frame::new_audio(audio, packet.stream_id);
 
 		Ok(Some(frame.with_pts(packet.pts)))

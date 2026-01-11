@@ -5,6 +5,5 @@ pub mod core;
 pub mod io;
 pub mod message;
 pub mod transform;
-
 pub const EXIT_FAILURE: i32 = 1;
 pub const EXIT_SUCCESS: i32 = 0;

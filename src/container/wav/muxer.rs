@@ -1,42 +1,43 @@
-use crate::container::wav::{WavFormat, WavMetadata};
+use super::format;
 use crate::core::Muxer;
 use crate::core::packet::Packet;
-use crate::core::stream::{self, Stream, StreamKind};
+use crate::core::stream::{self, Stream};
 use crate::core::time::Time;
-use crate::io::{MediaSeek, MediaWrite, SeekFrom, WritePrimitives};
+use crate::io::{BinaryWrite, MediaSeek, MediaWrite, SeekFrom};
 use crate::message::Result;
 
 pub struct WavMuxer<W: MediaWrite + MediaSeek> {
 	writer: W,
 	#[allow(dead_code)]
-	format: WavFormat,
+	format: format::WavFormat,
 	streams: stream::Streams,
-	metadata: Option<WavMetadata>,
+	metadata: Option<format::WavMetadata>,
 	data_size: u32,
 	data_size_pos: u64,
 	file_size_pos: u64,
 }
 
 impl<W: MediaWrite + MediaSeek> WavMuxer<W> {
-	pub fn new(mut writer: W, format: WavFormat) -> Result<Self> {
+	pub fn new(mut writer: W, format: format::WavFormat) -> Result<Self> {
 		let (file_size_pos, data_size_pos) = Self::write_header(&mut writer, &format)?;
 		writer.flush()?;
 
 		let codec_name = format.to_codec_string().to_string();
-		let time = Time::new(1, format.sample_rate);
+		let time = Time::new(1, format.sample_rate)?;
 		let mut streams = stream::Streams::new_empty();
-		let stream = Stream::new(0, 0, StreamKind::Audio, codec_name, time);
+		let stream_id = streams.next_id();
+		let stream = Stream::new_audio(stream_id, codec_name, time);
 
 		streams.add(stream);
 
 		Ok(Self { writer, format, streams, metadata: None, data_size: 0, data_size_pos, file_size_pos })
 	}
 
-	pub fn with_metadata(&mut self, metadata: Option<WavMetadata>) {
+	pub fn with_metadata(&mut self, metadata: Option<format::WavMetadata>) {
 		self.metadata = metadata;
 	}
 
-	fn write_header(writer: &mut W, format: &WavFormat) -> Result<(u64, u64)> {
+	fn write_header(writer: &mut W, format: &format::WavFormat) -> Result<(u64, u64)> {
 		writer.write_all(b"RIFF")?;
 		let file_size_pos = writer.stream_position()?;
 		writer.write_u32_le(0)?;
@@ -96,7 +97,7 @@ impl<W: MediaWrite + MediaSeek> WavMuxer<W> {
 		Ok(())
 	}
 
-	fn calc_list_size(metadata: &WavMetadata) -> u64 {
+	fn calc_list_size(metadata: &format::WavMetadata) -> u64 {
 		metadata.all_fields().values().fold(8, |acc, v| {
 			let mut size = acc + 8 + v.len() as u64 + 1;
 			if (v.len() + 1) % 2 == 1 {
@@ -106,7 +107,7 @@ impl<W: MediaWrite + MediaSeek> WavMuxer<W> {
 		})
 	}
 
-	fn write_list_chunk(writer: &mut W, metadata: &WavMetadata) -> Result<()> {
+	fn write_list_chunk(writer: &mut W, metadata: &format::WavMetadata) -> Result<()> {
 		if metadata.is_empty() {
 			return Ok(());
 		}

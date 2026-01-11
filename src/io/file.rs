@@ -6,22 +6,36 @@ use std::io::{Read, Seek, Write};
 #[derive(Debug)]
 pub struct File {
 	file: std::fs::File,
+	extension: Option<String>,
 }
 impl File {
 	pub fn open(path: &str) -> Result<Self> {
 		let file = mapper_error(std::fs::File::open(path), path)?;
-		Ok(Self { file })
+		let temp_file = std::path::Path::new(path);
+		if let Some(extension) = temp_file.extension() {
+			let extension = extension.to_str().map(|s| s.to_owned());
+			return Ok(Self { file, extension });
+		}
+		Ok(Self { file, extension: None })
 	}
 
 	pub fn create(path: &str) -> Result<Self> {
 		let file = mapper_error(std::fs::File::create(path), path)?;
-		Ok(Self { file })
+		let temp_file = std::path::Path::new(path);
+		if let Some(extension) = temp_file.extension() {
+			let extension = extension.to_str().map(|s| s.to_owned());
+			return Ok(Self { file, extension });
+		}
+		Ok(Self { file, extension: None })
 	}
 }
 
 impl MediaRead for File {
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
 		self.file.read(buf).map_err(Into::into)
+	}
+	fn extension(&self) -> Option<String> {
+		self.extension.clone()
 	}
 }
 

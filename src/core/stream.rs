@@ -1,3 +1,4 @@
+use core::fmt;
 use std::fmt::Display;
 
 use crate::core::time::Time;
@@ -9,10 +10,20 @@ pub enum StreamKind {
 	Subtitle,
 }
 
+impl Display for StreamKind {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let text = match self {
+			StreamKind::Audio => "audio",
+			StreamKind::Video => "video",
+			StreamKind::Subtitle => "subtitle",
+		};
+		write!(f, "{}", text)
+	}
+}
+
 #[derive(Debug, Clone)]
 pub struct Stream {
 	pub id: u32,
-	pub index: usize,
 	pub kind: StreamKind,
 	pub codec: String,
 	pub time: Time,
@@ -20,8 +31,20 @@ pub struct Stream {
 }
 
 impl Stream {
-	pub fn new(id: u32, index: usize, kind: StreamKind, codec: String, time: Time) -> Self {
-		Self { id, index, kind, codec, time, codec_private: Vec::new() }
+	pub fn new(id: u32, kind: StreamKind, codec: String, time: Time) -> Self {
+		Self { id, kind, codec, time, codec_private: Vec::new() }
+	}
+
+	pub fn new_audio(id: u32, codec: String, time: Time) -> Self {
+		Self::new(id, StreamKind::Audio, codec, time)
+	}
+
+	pub fn new_video(id: u32, codec: String, time: Time) -> Self {
+		Self::new(id, StreamKind::Video, codec, time)
+	}
+
+	pub fn new_subtitle(id: u32, codec: String, time: Time) -> Self {
+		Self::new(id, StreamKind::Subtitle, codec, time)
 	}
 
 	pub fn with_codec_private(mut self, codec_private: Vec<u8>) -> Self {
@@ -59,16 +82,22 @@ impl Streams {
 		Self { inner: Vec::new() }
 	}
 
-	pub fn add(&mut self, stream: Stream) {
+	pub fn add(&mut self, stream: Stream) -> u32 {
+		let index = self.inner.len() as u32;
 		self.inner.push(stream);
+		index
+	}
+
+	pub fn next_id(&self) -> u32 {
+		self.inner.len() as u32
 	}
 
 	pub fn all(&self) -> &[Stream] {
 		&self.inner
 	}
 
-	pub fn get(&self, index: u32) -> Option<&Stream> {
-		self.inner.get(index as usize)
+	pub fn get(&self, id: u32) -> Option<&Stream> {
+		self.inner.get(id as usize)
 	}
 
 	pub fn audio(&self) -> impl Iterator<Item = &Stream> {
@@ -90,7 +119,7 @@ impl Streams {
 
 impl Display for Stream {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "stream {} ({:?}) [{}]", self.index, self.kind, self.codec)
+		write!(f, "stream id: {} kind: {} codec: {}", self.id, self.kind, self.codec)
 	}
 }
 

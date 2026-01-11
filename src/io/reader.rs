@@ -1,16 +1,18 @@
+#![allow(dead_code)]
 pub const DEFAULT_BUFFER_SIZE: usize = 8192;
-use crate::message::Result;
+use crate::{error, message::Result};
 
 pub trait MediaRead {
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
+	fn extension(&self) -> Option<String>;
 }
 
-pub trait ReadPrimitives: MediaRead {
+pub trait BinaryRead: MediaRead {
 	fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
 		let mut filled = 0;
 		while filled < buf.len() {
 			match self.read(&mut buf[filled..]) {
-				Ok(0) => return Err(crate::error!("unexpected EOF")),
+				Ok(0) => return Err(error!("unexpected EOF")),
 				Ok(n) => filled += n,
 				Err(e) => return Err(e),
 			}
@@ -145,7 +147,7 @@ pub trait ReadPrimitives: MediaRead {
 	}
 }
 
-impl<T: MediaRead> ReadPrimitives for T {}
+impl<T: MediaRead> BinaryRead for T {}
 
 pub struct StdReadAdapter<R> {
 	inner: R,
@@ -177,6 +179,9 @@ impl<R: std::io::Read> MediaRead for StdReadAdapter<R> {
 	#[inline]
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
 		self.inner.read(buf).map_err(|e| crate::message::Message::from(e))
+	}
+	fn extension(&self) -> Option<String> {
+		None
 	}
 }
 
@@ -252,6 +257,9 @@ impl<R: MediaRead, const N: usize> MediaRead for BufferedReader<R, N> {
 		self.consume(amt);
 		Ok(amt)
 	}
+	fn extension(&self) -> Option<String> {
+		None
+	}
 }
 
 impl MediaRead for &[u8] {
@@ -261,6 +269,149 @@ impl MediaRead for &[u8] {
 		buf[..amt].copy_from_slice(a);
 		*self = b;
 		Ok(amt)
+	}
+	fn extension(&self) -> Option<String> {
+		None
+	}
+}
+
+pub trait MediaWrite {
+	fn write(&mut self, buf: &[u8]) -> Result<usize>;
+	fn flush(&mut self) -> Result<()>;
+}
+
+pub trait BinaryWrite: MediaWrite {
+	fn write_all(&mut self, buf: &[u8]) -> Result<()> {
+		let mut written = 0;
+		while written < buf.len() {
+			match self.write(&buf[written..]) {
+				Ok(0) => return Err(crate::error!("write returned zero")),
+				Ok(n) => written += n,
+				Err(e) => return Err(e),
+			}
+		}
+		Ok(())
+	}
+
+	#[inline]
+	fn write_u8(&mut self, value: u8) -> Result<()> {
+		self.write_all(&[value])
+	}
+	#[inline]
+	fn write_u16_be(&mut self, value: u16) -> Result<()> {
+		self.write_all(&value.to_be_bytes())
+	}
+	#[inline]
+	fn write_u16_le(&mut self, value: u16) -> Result<()> {
+		self.write_all(&value.to_le_bytes())
+	}
+	#[inline]
+	fn write_u32_be(&mut self, value: u32) -> Result<()> {
+		self.write_all(&value.to_be_bytes())
+	}
+	#[inline]
+	fn write_u32_le(&mut self, value: u32) -> Result<()> {
+		self.write_all(&value.to_le_bytes())
+	}
+	#[inline]
+	fn write_u64_be(&mut self, value: u64) -> Result<()> {
+		self.write_all(&value.to_be_bytes())
+	}
+	#[inline]
+	fn write_u64_le(&mut self, value: u64) -> Result<()> {
+		self.write_all(&value.to_le_bytes())
+	}
+	#[inline]
+	fn write_i8(&mut self, value: i8) -> Result<()> {
+		self.write_all(&[value as u8])
+	}
+	#[inline]
+	fn write_i16_be(&mut self, value: i16) -> Result<()> {
+		self.write_all(&value.to_be_bytes())
+	}
+	#[inline]
+	fn write_i16_le(&mut self, value: i16) -> Result<()> {
+		self.write_all(&value.to_le_bytes())
+	}
+	#[inline]
+	fn write_i32_be(&mut self, value: i32) -> Result<()> {
+		self.write_all(&value.to_be_bytes())
+	}
+	#[inline]
+	fn write_i32_le(&mut self, value: i32) -> Result<()> {
+		self.write_all(&value.to_le_bytes())
+	}
+	#[inline]
+	fn write_i64_be(&mut self, value: i64) -> Result<()> {
+		self.write_all(&value.to_be_bytes())
+	}
+	#[inline]
+	fn write_i64_le(&mut self, value: i64) -> Result<()> {
+		self.write_all(&value.to_le_bytes())
+	}
+	#[inline]
+	fn write_f32_be(&mut self, value: f32) -> Result<()> {
+		self.write_all(&value.to_be_bytes())
+	}
+	#[inline]
+	fn write_f32_le(&mut self, value: f32) -> Result<()> {
+		self.write_all(&value.to_le_bytes())
+	}
+	#[inline]
+	fn write_f64_be(&mut self, value: f64) -> Result<()> {
+		self.write_all(&value.to_be_bytes())
+	}
+	#[inline]
+	fn write_f64_le(&mut self, value: f64) -> Result<()> {
+		self.write_all(&value.to_le_bytes())
+	}
+}
+
+impl<T: MediaWrite> BinaryWrite for T {}
+
+pub struct StdWriteAdapter<W> {
+	inner: W,
+}
+
+impl<W> StdWriteAdapter<W> {
+	#[inline]
+	pub const fn new(inner: W) -> Self {
+		Self { inner }
+	}
+	#[inline]
+	pub fn into_inner(self) -> W {
+		self.inner
+	}
+	#[inline]
+	pub const fn get_ref(&self) -> &W {
+		&self.inner
+	}
+	#[inline]
+	pub fn get_mut(&mut self) -> &mut W {
+		&mut self.inner
+	}
+}
+
+impl<W: std::io::Write> MediaWrite for StdWriteAdapter<W> {
+	#[inline]
+	fn write(&mut self, buf: &[u8]) -> Result<usize> {
+		self.inner.write(buf).map_err(|e| crate::message::Message::from(e))
+	}
+	#[inline]
+	fn flush(&mut self) -> Result<()> {
+		self.inner.flush().map_err(|e| crate::message::Message::from(e))
+	}
+}
+
+impl MediaWrite for Vec<u8> {
+	#[inline]
+	fn write(&mut self, buf: &[u8]) -> Result<usize> {
+		self.extend_from_slice(buf);
+		Ok(buf.len())
+	}
+	#[inline]
+	fn flush(&mut self) -> Result<()> {
+		Ok(())
 	}
 }
 
@@ -273,22 +424,18 @@ impl<W, const N: usize> BufferedWriter<W, N> {
 	pub fn new(inner: W) -> Self {
 		Self { inner, buffer: Vec::with_capacity(N) }
 	}
-
 	#[inline]
 	pub fn into_inner(self) -> W {
 		self.inner
 	}
-
 	#[inline]
 	pub const fn get_ref(&self) -> &W {
 		&self.inner
 	}
-
 	#[inline]
 	pub fn get_mut(&mut self) -> &mut W {
 		&mut self.inner
 	}
-
 	#[inline]
 	pub const fn capacity(&self) -> usize {
 		N
@@ -312,7 +459,7 @@ impl<W: crate::io::MediaWrite, const N: usize> BufferedWriter<W, N> {
 	}
 }
 
-impl<W: crate::io::MediaWrite, const N: usize> crate::io::MediaWrite for BufferedWriter<W, N> {
+impl<W: crate::io::MediaWrite, const N: usize> MediaWrite for BufferedWriter<W, N> {
 	fn write(&mut self, buf: &[u8]) -> Result<usize> {
 		if self.buffer.len() + buf.len() > N {
 			self.flush_buf()?;

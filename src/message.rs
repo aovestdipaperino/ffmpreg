@@ -40,19 +40,25 @@ impl From<std::io::Error> for Message {
 pub struct Message {
 	pub kind: MessageKind,
 	pub text: String,
+	pub note: Option<String>,
 }
 
 impl Message {
 	pub fn error(text: impl Into<String>) -> Self {
-		Self { kind: MessageKind::Error, text: text.into() }
+		Self { kind: MessageKind::Error, text: text.into(), note: None }
 	}
 
 	pub fn warning(text: impl Into<String>) -> Self {
-		Self { kind: MessageKind::Warning, text: text.into() }
+		Self { kind: MessageKind::Warning, text: text.into(), note: None }
 	}
 
 	pub fn info(text: impl Into<String>) -> Self {
-		Self { kind: MessageKind::Info, text: text.into() }
+		Self { kind: MessageKind::Info, text: text.into(), note: None }
+	}
+
+	pub fn with_note(mut self, note: impl Into<String>) -> Self {
+		self.note = Some(note.into());
+		self
 	}
 
 	pub fn render(&self) {

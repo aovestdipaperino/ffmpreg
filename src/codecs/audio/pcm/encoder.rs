@@ -1,4 +1,4 @@
-use crate::container::wav::{WavFormat, converter};
+use crate::container::wav::{converter, format};
 use crate::core::Encoder;
 use crate::core::frame::{AudioFormat, Channels, Frame};
 use crate::core::packet::Packet;
@@ -20,7 +20,7 @@ impl PcmEncoder {
 		self
 	}
 
-	fn wav_format(format: AudioFormat, channels: Channels, sample_rate: u32) -> WavFormat {
+	fn wav_format(format: AudioFormat, channels: Channels, sample_rate: u32) -> format::WavFormat {
 		let bit_depth = match format {
 			AudioFormat::PCM16 => 16,
 			AudioFormat::PCM24 => 24,
@@ -28,7 +28,7 @@ impl PcmEncoder {
 			_ => 16,
 		};
 		let format_code = if bit_depth == 32 { 3 } else { 1 };
-		WavFormat { channels, sample_rate, bit_depth, format_code }
+		format::WavFormat { channels, sample_rate, bit_depth, format_code }
 	}
 }
 
@@ -39,7 +39,7 @@ impl Encoder for PcmEncoder {
 			None => return Ok(None),
 		};
 
-		let time = Time::new(1, self.sample_rate);
+		let time = Time::new(1, self.sample_rate)?;
 
 		if let Some(target) = self.target_format {
 			let format = Self::wav_format(audio.format, audio.channels, self.sample_rate);

@@ -19,3 +19,14 @@ pub const PCM: &str = "pcm";
 pub const M4A: &str = "m4a";
 pub const ALAC: &str = "alac";
 pub const OGG: &str = "ogg";
+
+//
+pub const JPEG: &str = "jpeg";
+pub const JPG: &str = "jpg";
+pub const PNG: &str = "png";
+pub const BMP: &str = "bmp";
+pub const TIFF: &str = "tiff";
+pub const WEBP: &str = "webp";
+
+/// Chunk size limit for demuxer packet reading (65KB)
+pub const CHUNK_SIZE_LIMIT: usize = 65536;

@@ -1,6 +1,6 @@
+use super::format::WavFormat;
 use super::utils;
-use crate::{container::wav::WavFormat, error, message};
-
+use crate::{error, message};
 pub fn to_f32(data: &[u8], format: &WavFormat) -> message::Result<Vec<f32>> {
 	match format.bit_depth {
 		16 => from_pcm16(data),

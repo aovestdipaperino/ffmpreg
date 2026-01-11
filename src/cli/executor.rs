@@ -34,18 +34,34 @@ pub fn execute(cli: cli::Cli) -> message::Result<()> {
 		pipe.with_subtitle(subtitle);
 	}
 
-	// Route based on output format first for clarity
 	match output_ext.as_str() {
+		// audio
+		container::MP3 => pipeline::mp3::run(pipe),
 		container::WAV => pipeline::wav::run(pipe),
-		container::RAW | container::PCM => pipeline::raw::run(pipe),
-		_ => {
-			// Fall back to input-based routing
-			match input_ext.as_str() {
-				container::WAV => pipeline::wav::run(pipe),
-				container::RAW | container::PCM => pipeline::raw::run(pipe),
-				container::MOV => pipeline::webm::run(pipe),
-				_ => Err(error!("unsupported '{}' format", input_ext)),
-			}
-		}
+		container::AAC => pipeline::aac::run(pipe),
+		container::OPUS => pipeline::opus::run(pipe),
+		container::FLAC => pipeline::flac::run(pipe),
+		container::ALAC => pipeline::alac::run(pipe),
+		container::M4A => pipeline::m4a::run(pipe),
+		container::OGG => pipeline::ogg::run(pipe),
+
+		// video
+		container::MP4 => pipeline::mp4::run(pipe),
+		container::AVI => pipeline::avi::run(pipe),
+		container::MOV => pipeline::mov::run(pipe),
+		container::WEBM => pipeline::webm::run(pipe),
+		container::MKV => pipeline::mkv::run(pipe),
+		container::OGV => pipeline::ogv::run(pipe),
+		container::FLV => pipeline::flv::run(pipe),
+		container::MXF => pipeline::mxf::run(pipe),
+		container::TS => pipeline::ts::run(pipe),
+
+		// images
+		container::JPEG | container::JPG => pipeline::jpeg::run(pipe),
+		container::PNG => pipeline::png::run(pipe),
+		container::BMP => pipeline::bmp::run(pipe),
+		container::WEBP => pipeline::webp::run(pipe),
+		container::TIFF => pipeline::tiff::run(pipe),
+		_ => Err(error!("unsupported format '{}'", output_ext)),
 	}
 }

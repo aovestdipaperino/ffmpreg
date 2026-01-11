@@ -128,6 +128,9 @@ impl<R: crate::io::MediaRead, S> crate::io::MediaRead for SeekableReader<R, S> {
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
 		self.reader.read(buf)
 	}
+	fn extension(&self) -> Option<String> {
+		None
+	}
 }
 
 impl<R, S: MediaSeek> MediaSeek for SeekableReader<R, S> {

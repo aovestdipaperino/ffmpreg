@@ -1,7 +1,7 @@
 pub mod demuxer;
-pub mod formater;
+pub mod format;
 pub mod muxer;
 
 pub use demuxer::RawPcmDemuxer;
-pub use formater::RawPcmFormat;
+pub use format::*;
 pub use muxer::RawPcmMuxer;

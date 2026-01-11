@@ -7,7 +7,7 @@ pub trait MediaWrite {
 	fn flush(&mut self) -> Result<()>;
 }
 
-pub trait WritePrimitives: MediaWrite {
+pub trait BinaryWrite: MediaWrite {
 	fn write_all(&mut self, buf: &[u8]) -> Result<()> {
 		let mut written = 0;
 		while written < buf.len() {
@@ -111,7 +111,7 @@ pub trait WritePrimitives: MediaWrite {
 	}
 }
 
-impl<T: MediaWrite> WritePrimitives for T {}
+impl<T: MediaWrite> BinaryWrite for T {}
 
 pub struct StdWriteAdapter<W> {
 	inner: W,
