@@ -1,46 +1,40 @@
-use crate::codecs;
-use crate::container::raw;
 pub use crate::container::wav::demuxer::WavDemuxer;
-pub use crate::container::wav::metadata::WavMetadata;
 pub use crate::container::wav::muxer::WavMuxer;
-pub use crate::core;
-use crate::core::frame::{AudioFormat, Channels};
+use crate::core::frame::{BitDepth, Channels, SampleRate};
+use crate::{codecs, core};
 
 #[derive(Debug, Clone, Copy)]
 pub struct WavFormat {
 	pub channels: Channels,
-	pub sample_rate: u32,
-	pub bit_depth: u16,
+	pub sample_rate: SampleRate,
+	pub bit_depth: BitDepth,
 	pub format_code: u16,
 }
 
 impl Default for WavFormat {
 	fn default() -> Self {
 		// defaut is pcm_16
-		Self { channels: Channels::Stereo, sample_rate: 44100, bit_depth: 16, format_code: 1 }
+		Self {
+			channels: Channels::Stereo,
+			sample_rate: SampleRate::SR44_1K,
+			bit_depth: BitDepth::Bit16,
+			format_code: 1,
+		}
 	}
 }
 
 impl WavFormat {
 	pub fn new_for_codec(codec: &str) -> Result<Self, String> {
 		match codec {
-			codecs::audio::PCM_S16LE => Ok(Self::default()),
-			codecs::audio::PCM_S24LE => Ok(Self { bit_depth: 24, ..Self::default() }),
-			codecs::audio::PCM_F32LE => Ok(Self { bit_depth: 32, format_code: 3, ..Self::default() }),
+			"pcm_s16le" => Ok(Self::default()),
+			"pcm_s24le" => Ok(Self { bit_depth: BitDepth::Bit24, ..Self::default() }),
+			"pcm_f32le" => Ok(Self { bit_depth: BitDepth::Bit32, format_code: 3, ..Self::default() }),
 			_ => Err(format!("wav codec '{}' is not supported", codec)),
 		}
 	}
 
-	pub fn to_raw_format(&self) -> raw::format::RawPcmFormat {
-		raw::format::RawPcmFormat {
-			channels: self.channels,
-			sample_rate: self.sample_rate,
-			bit_depth: self.bit_depth,
-		}
-	}
-
 	pub fn bytes_per_sample(&self) -> usize {
-		(self.bit_depth / 8) as usize
+		self.bit_depth.bytes()
 	}
 
 	pub fn bytes_per_frame(&self) -> usize {
@@ -50,38 +44,39 @@ impl WavFormat {
 	pub fn byte_rate(&self) -> u32 {
 		self
 			.sample_rate
+			.value()
 			.saturating_mul(self.channels.count() as u32)
 			.saturating_mul(self.bytes_per_sample() as u32)
 	}
 
 	pub fn block_align(&self) -> u16 {
-		self.channels.count() as u16 * (self.bit_depth / 8)
-	}
-
-	pub fn audio_format(&self) -> AudioFormat {
-		match self.bit_depth {
-			16 => AudioFormat::PCM16,
-			24 => AudioFormat::PCM24,
-			32 => AudioFormat::PCM32,
-			_ => AudioFormat::PCM16,
-		}
+		self.channels.count() as u16 * (self.bit_depth.bytes() as u16)
 	}
 
 	pub fn to_codec_string(&self) -> &'static str {
-		match self.bit_depth {
-			16 => codecs::audio::PCM_S16LE,
-			24 => codecs::audio::PCM_S24LE,
-			32 => codecs::audio::PCM_F32LE,
-			_ => codecs::audio::PCM_S16LE,
+		match self.bit_depth.bits() {
+			16 => "pcm_s16le",
+			24 => "pcm_s24le",
+			32 => "pcm_f32le",
+			_ => "pcm_s16le",
+		}
+	}
+
+	pub fn to_codec_id(&self) -> core::CodecId {
+		match self.bit_depth.bits() {
+			16 => codecs::PCM_S16LE,
+			24 => codecs::PCM_S24LE,
+			32 => codecs::PCM_F32LE,
+			_ => codecs::PCM_S16LE,
 		}
 	}
 
 	pub fn apply_codec(&mut self, codec: &str) -> Result<(), String> {
 		match codec {
-			codecs::audio::PCM_S16LE => self.bit_depth = 16,
-			codecs::audio::PCM_S24LE => self.bit_depth = 24,
-			codecs::audio::PCM_F32LE => {
-				self.bit_depth = 32;
+			"pcm_s16le" => self.bit_depth = BitDepth::Bit16,
+			"pcm_s24le" => self.bit_depth = BitDepth::Bit24,
+			"pcm_f32le" => {
+				self.bit_depth = BitDepth::Bit32;
 				self.format_code = 3;
 			}
 			_ => return Err(format!("wav codec '{}' is not supported", codec)),

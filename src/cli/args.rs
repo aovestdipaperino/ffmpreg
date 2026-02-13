@@ -1,26 +1,52 @@
-use clap::Parser;
+use std::path::PathBuf;
 
-#[derive(Parser, Debug)]
-#[command(name = "ffmpreg")]
-#[command(about = env!("CARGO_PKG_DESCRIPTION"), long_about = None)]
-#[command(version = env!("CARGO_PKG_VERSION"))]
-#[command(author = env!("CARGO_PKG_AUTHORS"))]
-pub struct Cli {
-	#[arg(short, long)]
-	pub input: String,
+#[derive(Debug, Clone)]
+pub enum Cli {
+	Command(Command),
+	Convert(ConvertOptions),
+}
 
-	#[arg(short, long)]
-	pub output: String,
+#[derive(Debug, Clone)]
+pub enum Command {
+	Probe(ProbeCommand),
+	Play(PlayCommand),
+}
 
-	#[arg(long, num_args = 1..)]
+#[derive(Debug, Clone)]
+pub struct PlayCommand {
+	pub input: PathBuf,
+	pub output: Option<PathBuf>,
+	pub base: BaseOptions,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProbeCommand {
+	pub input: PathBuf,
+	pub output: Option<PathBuf>,
+	pub json: Option<JsonOption>,
+
+	pub base: BaseOptions,
+}
+
+#[derive(Clone, Debug, Default)]
+pub enum JsonOption {
+	Pretty,
+	#[default]
+	Raw,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConvertOptions {
+	pub input: PathBuf,
+	pub output: PathBuf,
+
+	pub base: BaseOptions,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct BaseOptions {
 	pub audio: Vec<String>,
-
-	#[arg(long, num_args = 1..)]
 	pub video: Vec<String>,
-
-	#[arg(long, num_args = 1..)]
 	pub subtitle: Vec<String>,
-
-	#[arg(long, num_args = 1..)]
 	pub apply: Vec<String>,
 }

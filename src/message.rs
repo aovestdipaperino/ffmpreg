@@ -1,12 +1,6 @@
-use std::fmt;
+use std::fmt::{self, Display};
 
-use crate::{EXIT_FAILURE, EXIT_SUCCESS};
-
-pub const RED: &str = "\x1b[1;31m";
-pub const YELLOW: &str = "\x1b[1;33m";
-pub const BLUE: &str = "\x1b[1;34m";
-pub const RESET: &str = "\x1b[0m";
-
+use crate::{EXIT_FAILURE, EXIT_SUCCESS, utils::color::*};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MessageKind {
 	Error,
@@ -35,8 +29,18 @@ impl From<std::io::Error> for Message {
 		Message::error(err.to_string())
 	}
 }
+impl From<String> for Message {
+	fn from(message: String) -> Self {
+		Message::error(message)
+	}
+}
 
-#[derive(Debug)]
+impl From<Message> for std::io::Error {
+	fn from(message: Message) -> Self {
+		std::io::Error::other(message.text)
+	}
+}
+
 pub struct Message {
 	pub kind: MessageKind,
 	pub text: String,
@@ -61,15 +65,25 @@ impl Message {
 		self
 	}
 
-	pub fn render(&self) {
+	fn render_value(&self) -> String {
+		let name = self.kind.name();
 		match self.kind {
-			MessageKind::Error => println!("{}{}:{} {}", RED, self.kind, RESET, self.text),
-			MessageKind::Warning => println!("{}{}:{} {}", YELLOW, self.kind, RESET, self.text),
-			MessageKind::Info => println!("{}{}:{} {}", BLUE, self.kind, RESET, self.text),
+			MessageKind::Error => format!("{}: {}", red.text(name), self.text),
+			MessageKind::Warning => format!("{}: {}", yellow.text(name), self.text),
+			MessageKind::Info => format!("{}: {}", blue.text(name), self.text),
 		}
 	}
 
-	pub fn render_and_exit(&self) -> ! {
+	pub fn render(&self) {
+		let name = self.kind.name();
+		match self.kind {
+			MessageKind::Error => println!("{}: {}", red.text(name), self.text),
+			MessageKind::Warning => println!("{}: {}", yellow.text(name), self.text),
+			MessageKind::Info => println!("{}: {}", blue.text(name), self.text),
+		}
+	}
+
+	pub fn report(&self) -> ! {
 		self.render();
 		if self.kind == MessageKind::Error {
 			std::process::exit(EXIT_FAILURE);
@@ -78,7 +92,49 @@ impl Message {
 	}
 }
 
+impl Display for Message {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", self.render_value())
+	}
+}
+impl fmt::Debug for Message {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", self.text)
+	}
+}
+#[derive(Debug)]
+pub struct Messages {
+	pub list: Vec<Message>,
+}
+
+impl Messages {
+	pub fn new() -> Self {
+		Self { list: vec![] }
+	}
+
+	pub fn message(&mut self, message: Message) {
+		self.list.push(message);
+	}
+
+	pub fn has_errors(&self) -> bool {
+		self.list.iter().any(|m| m.kind == MessageKind::Error)
+	}
+}
+
 pub type Result<T> = std::result::Result<T, Message>;
+
+pub trait Report<T> {
+	fn report(self) -> T;
+}
+
+impl<T> Report<T> for Result<T> {
+	fn report(self) -> T {
+		match self {
+			Ok(value) => value,
+			Err(message) => message.report(),
+		}
+	}
+}
 
 #[macro_export]
 macro_rules! error {

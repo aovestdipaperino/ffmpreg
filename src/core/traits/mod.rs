@@ -2,6 +2,8 @@ pub mod decode;
 pub mod demuxer;
 pub mod encode;
 pub mod muxer;
+pub mod swresample;
+pub mod swscale;
 pub mod transform;
 
 pub use decode::Decoder;

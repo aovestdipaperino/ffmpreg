@@ -1,6 +1,9 @@
-pub mod audio;
-pub mod subtitle;
-pub mod video;
+mod audio;
+mod register;
+mod subtitle;
+mod video;
 
-pub const UNKNOWN: &str = "unknown";
-pub const RAW: &str = "raw";
+pub use audio::*;
+pub use register::*;
+pub use subtitle::*;
+pub use video::*;

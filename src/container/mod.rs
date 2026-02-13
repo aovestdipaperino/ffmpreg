@@ -1,8 +1,11 @@
-pub mod flac;
+mod container;
 pub mod format;
 pub mod mkv;
-pub mod raw;
 pub mod wav;
 
 mod constants;
+mod register;
+
 pub use constants::*;
+pub use container::*;
+pub use register::*;

@@ -1,62 +1,68 @@
 use crate::container::wav::{converter, format};
 use crate::core::Encoder;
-use crate::core::frame::{AudioFormat, Channels, Frame};
-use crate::core::packet::Packet;
+use crate::core::frame::{BitDepth, Channels, Frame, FrameAudio, SampleRate};
+use crate::core::packet::{Packet, PacketIter};
 use crate::core::time::Time;
 use crate::message::Result;
 
 pub struct PcmEncoder {
-	sample_rate: u32,
-	target_format: Option<AudioFormat>,
+	sample_rate: SampleRate,
+	target_bit_depth: Option<BitDepth>,
 }
 
 impl PcmEncoder {
-	pub fn new(sample_rate: u32) -> Self {
-		Self { sample_rate, target_format: None }
+	pub fn new(sample_rate: SampleRate) -> Self {
+		Self { sample_rate, target_bit_depth: None }
 	}
 
-	pub fn with_target_format(mut self, format: AudioFormat) -> Self {
-		self.target_format = Some(format);
+	#[inline(always)]
+	pub fn from_format(format: &format::WavFormat) -> Self {
+		Self::new(format.sample_rate).with_bit_depth(format.bit_depth)
+	}
+
+	pub const fn with_bit_depth(mut self, bit_depth: BitDepth) -> Self {
+		self.target_bit_depth = Some(bit_depth);
 		self
 	}
 
-	fn wav_format(format: AudioFormat, channels: Channels, sample_rate: u32) -> format::WavFormat {
-		let bit_depth = match format {
-			AudioFormat::PCM16 => 16,
-			AudioFormat::PCM24 => 24,
-			AudioFormat::PCM32 => 32,
-			_ => 16,
-		};
-		let format_code = if bit_depth == 32 { 3 } else { 1 };
+	const fn make_wav_format(
+		bit_depth: BitDepth,
+		channels: Channels,
+		sample_rate: SampleRate,
+	) -> format::WavFormat {
+		let format_code = if bit_depth.bits() == 32 { 3 } else { 1 };
 		format::WavFormat { channels, sample_rate, bit_depth, format_code }
 	}
 }
 
 impl Encoder for PcmEncoder {
-	fn encode(&mut self, frame: Frame) -> Result<Option<Packet>> {
-		let audio = match frame.audio() {
-			Some(audio) => audio,
-			None => return Ok(None),
+	fn encode(&mut self, mut frame: Frame) -> Result<PacketIter> {
+		let audio = frame.audio_mut().ok_or_else(|| crate::error!("no audio data"))?;
+		let time = Time::new(1, self.sample_rate.value())?;
+
+		let packet = if let Some(bit_depth) = self.target_bit_depth {
+			let data = self.transcode_audio(&audio, bit_depth)?;
+			Packet::new(data, frame.track_id, time).with_pts(frame.pts().pts)
+		} else {
+			// todo: is good to take here?
+			let data = std::mem::take(&mut audio.data);
+			Packet::new(data, frame.track_id, time).with_pts(frame.pts().pts)
 		};
 
-		let time = Time::new(1, self.sample_rate)?;
-
-		if let Some(target) = self.target_format {
-			let format = Self::wav_format(audio.format, audio.channels, self.sample_rate);
-			let target_format = Self::wav_format(target, audio.channels, self.sample_rate);
-
-			let samples = converter::to_f32(&audio.data, &format)?;
-
-			let data = converter::from_f32(&samples, &target_format)?;
-			let packet = Packet::new(data, frame.stream_id, time);
-			return Ok(Some(packet.with_pts(frame.pts)));
-		}
-
-		let packet = Packet::new(audio.data.clone(), frame.stream_id, time);
-		Ok(Some(packet.with_pts(frame.pts)))
+		Ok(PacketIter::new(vec![packet]))
 	}
 
-	fn flush(&mut self) -> Result<Option<Packet>> {
-		Ok(None)
+	fn finish(&mut self) -> Result<PacketIter> {
+		Ok(PacketIter::empty())
+	}
+}
+
+impl PcmEncoder {
+	fn transcode_audio(&self, audio: &FrameAudio, bit_depth: BitDepth) -> Result<Vec<u8>> {
+		let src_format = Self::make_wav_format(audio.bit_depth, audio.channels, self.sample_rate);
+		let dst_format = Self::make_wav_format(bit_depth, audio.channels, self.sample_rate);
+
+		let samples = converter::to_f32(&audio.data, &src_format)?;
+		converter::from_f32(&samples, &dst_format)
 	}
 }

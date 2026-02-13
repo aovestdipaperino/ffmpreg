@@ -25,10 +25,11 @@ impl Default for WavHeader {
 
 impl WavHeader {
 	pub fn to_format(&self) -> format::WavFormat {
+		use crate::core::frame::{BitDepth, SampleRate};
 		format::WavFormat {
 			channels: self.channels,
-			sample_rate: self.sample_rate,
-			bit_depth: self.bits_per_sample,
+			sample_rate: SampleRate::from_value(self.sample_rate),
+			bit_depth: BitDepth::from_bits_any(self.bits_per_sample as u8),
 			format_code: self.format_code,
 		}
 	}

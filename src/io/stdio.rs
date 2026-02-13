@@ -13,9 +13,6 @@ impl crate::io::MediaRead for StdinAdapter {
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
 		std::io::stdin().read(buf).map_err(|e| crate::message::Message::from(e))
 	}
-	fn extension(&self) -> Option<String> {
-		None
-	}
 }
 
 pub struct StdoutAdapter;
@@ -50,9 +47,6 @@ impl crate::io::MediaRead for StdioSource {
 				file.read(buf).map_err(|e| crate::message::Message::from(e))
 			}
 		}
-	}
-	fn extension(&self) -> Option<String> {
-		None
 	}
 }
 

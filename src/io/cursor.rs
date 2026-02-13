@@ -52,9 +52,6 @@ impl<T: AsRef<[u8]>> crate::io::MediaRead for Cursor<T> {
 		self.offset += bytes_to_read as u64;
 		Ok(bytes_to_read)
 	}
-	fn extension(&self) -> Option<String> {
-		None
-	}
 }
 
 impl crate::io::MediaWrite for Cursor<Vec<u8>> {
@@ -75,7 +72,7 @@ impl crate::io::MediaWrite for Cursor<Vec<u8>> {
 		Ok(buf.len())
 	}
 
-	#[inline]
+	#[inline(always)]
 	fn flush(&mut self) -> Result<()> {
 		Ok(())
 	}

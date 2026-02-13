@@ -46,6 +46,12 @@ pub trait BinaryWrite: MediaWrite {
 	}
 
 	#[inline]
+	fn write_u24_be(&mut self, value: u32) -> Result<()> {
+		let buf = [(value >> 16) as u8, (value >> 8) as u8, value as u8];
+		self.write_all(&buf)
+	}
+
+	#[inline]
 	fn write_u64_be(&mut self, value: u64) -> Result<()> {
 		self.write_all(&value.to_be_bytes())
 	}
@@ -128,7 +134,6 @@ impl<W> StdWriteAdapter<W> {
 		self.inner
 	}
 
-	#[inline]
 	pub const fn get_ref(&self) -> &W {
 		&self.inner
 	}

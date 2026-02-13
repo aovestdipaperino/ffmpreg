@@ -1,19 +1,19 @@
-use super::format::{WavFormat, WavMetadata};
+use super::format::WavFormat;
 use super::header::WavHeader;
 use crate::container::constants::CHUNK_SIZE_LIMIT;
-use crate::core::Demuxer;
 use crate::core::frame::Channels;
 use crate::core::packet::Packet;
-use crate::core::stream::{Stream, Streams};
-use crate::core::time::Time;
+use crate::core::time::{Time, Timestamp};
+use crate::core::track::{AudioFormat, Metadata, TrackFormat};
+use crate::core::{Demuxer, Track, Tracks};
 use crate::io::{BinaryRead, MediaRead};
 use crate::{error, message::Result};
 
 pub struct WavDemuxer<R: MediaRead> {
 	reader: R,
 	format: WavFormat,
-	streams: Streams,
-	metadata: WavMetadata,
+	track: Track,
+	metadata: Metadata,
 	remaining_bytes: u64,
 	samples_read: u64,
 	packet_count: u64,
@@ -21,23 +21,32 @@ pub struct WavDemuxer<R: MediaRead> {
 }
 
 impl<R: MediaRead> WavDemuxer<R> {
-
 	pub fn new(mut reader: R) -> Result<Self> {
 		let (header, metadata, data_size) = Self::read_wav_and_find_data(&mut reader)?;
 		header.validate()?;
-		let mut streams = Streams::new_empty();
 
 		let format = header.to_format();
 		let time = Time::new(1, header.sample_rate)?;
-		let codec = format.to_codec_string().to_string();
-		let stream_id = streams.next_id();
-		let stream = Stream::new_audio(stream_id, codec, time);
-		streams.add(stream);
+		let codec = format.to_codec_id();
+
+		let audio_format = AudioFormat {
+			channels: format.channels,
+			bit_depth: format.bit_depth,
+			sample_rate: format.sample_rate,
+		};
+
+		let track = Track {
+			id: 0,
+			codec_in: codec,
+			codec_out: codec,
+			timestamp: Timestamp::zero(time),
+			format: TrackFormat::Audio(audio_format),
+		};
 
 		Ok(Self {
 			reader,
 			format,
-			streams,
+			track,
 			metadata,
 			remaining_bytes: data_size,
 			samples_read: 0,
@@ -46,22 +55,23 @@ impl<R: MediaRead> WavDemuxer<R> {
 		})
 	}
 
-	fn read_wav_and_find_data(reader: &mut R) -> Result<(WavHeader, WavMetadata, u64)> {
-		Self::check_fourcc(reader, "RIFF")?;
+	fn read_wav_and_find_data(reader: &mut R) -> Result<(WavHeader, Metadata, u64)> {
+		Self::check_fourcc_eq(reader, b"RIFF")?;
 		let _file_size = reader.read_u32_le()?;
-		Self::check_fourcc(reader, "WAVE")?;
+		Self::check_fourcc_eq(reader, b"WAVE")?;
 
 		let mut header = WavHeader::default();
-		let mut metadata = WavMetadata::new();
+		let mut metadata = Metadata::default();
 
 		loop {
-			let chunk_id = Self::read_fourcc(reader)?;
+			let mut chunk_id = [0u8; 4];
+			reader.read_exact(&mut chunk_id)?;
 			let chunk_size = reader.read_u32_le()? as u64;
 
-			match chunk_id.as_str() {
-				"fmt " => Self::read_fmt_chunk(reader, chunk_size, &mut header)?,
-				"LIST" => Self::read_list_chunk(reader, chunk_size, &mut metadata)?,
-				"data" => return Ok((header, metadata, chunk_size)),
+			match &chunk_id {
+				b"fmt " => Self::read_fmt_chunk(reader, chunk_size, &mut header)?,
+				b"LIST" => Self::read_list_chunk(reader, chunk_size, &mut metadata)?,
+				b"data" => return Ok((header, metadata, chunk_size)),
 				_ => Self::skip_bytes(reader, chunk_size)?,
 			}
 		}
@@ -85,19 +95,21 @@ impl<R: MediaRead> WavDemuxer<R> {
 		Ok(())
 	}
 
-	fn read_list_chunk(reader: &mut R, chunk_size: u64, metadata: &mut WavMetadata) -> Result<()> {
+	fn read_list_chunk(reader: &mut R, chunk_size: u64, metadata: &mut Metadata) -> Result<()> {
 		if chunk_size < 4 {
 			return Ok(());
 		}
 
-		let form_type = Self::read_fourcc(reader)?;
-		if form_type != "INFO" {
+		let mut form_type = [0u8; 4];
+		reader.read_exact(&mut form_type)?;
+		if form_type != *b"INFO" {
 			return Self::skip_bytes(reader, chunk_size - 4);
 		}
 
 		let mut pos = 4u64;
 		while pos + 8 <= chunk_size {
-			let id = Self::read_fourcc(reader)?;
+			let mut id = [0u8; 4];
+			reader.read_exact(&mut id)?;
 			let size = reader.read_u32_le()? as u64;
 			pos += 8;
 
@@ -105,16 +117,7 @@ impl<R: MediaRead> WavDemuxer<R> {
 			pos += size;
 
 			let value = String::from_utf8_lossy(&data).trim_end_matches('\0').to_string();
-			match id.as_str() {
-				"IART" => metadata.set("artist", value),
-				"INAM" => metadata.set("title", value),
-				"ICOM" => metadata.set("comment", value),
-				"ICOP" => metadata.set("copyright", value),
-				"ISFT" => metadata.set("software", value),
-				"IGNR" => metadata.set("genre", value),
-				"ITRK" => metadata.set("track", value),
-				_ => {}
-			}
+			Self::apply_wav_tag(metadata, &id, value);
 
 			if size % 2 == 1 {
 				reader.read_u8()?;
@@ -124,16 +127,30 @@ impl<R: MediaRead> WavDemuxer<R> {
 		Ok(())
 	}
 
-	fn read_fourcc(reader: &mut R) -> Result<String> {
-		let mut buf = [0u8; 4];
-		reader.read_exact(&mut buf)?;
-		Ok(String::from_utf8_lossy(&buf).to_string())
+	/// Map WAV RIFF INFO tags to standard metadata field names.
+	fn apply_wav_tag(metadata: &mut Metadata, id: &[u8; 4], value: String) {
+		let key = match id {
+			b"IART" => "artist",
+			b"INAM" => "title",
+			b"ICOM" => "comment",
+			b"ICOP" => "copyright",
+			b"ISFT" => "software",
+			b"IGNR" => "genre",
+			b"ITRK" => "track",
+			_ => return,
+		};
+		metadata.set(key, value);
 	}
 
-	fn check_fourcc(reader: &mut R, expected: &str) -> Result<()> {
-		let actual = Self::read_fourcc(reader)?;
-		if actual != expected {
-			return Err(error!("expected {}, found {}", expected, actual));
+	fn check_fourcc_eq(reader: &mut R, expected: &[u8; 4]) -> Result<()> {
+		let mut buf = [0u8; 4];
+		reader.read_exact(&mut buf)?;
+		if buf != *expected {
+			return Err(error!(
+				"expected {}, found {}",
+				String::from_utf8_lossy(expected),
+				String::from_utf8_lossy(&buf)
+			));
 		}
 		Ok(())
 	}
@@ -184,16 +201,33 @@ impl<R: MediaRead> WavDemuxer<R> {
 	pub fn format(&self) -> WavFormat {
 		self.format
 	}
-	pub fn metadata(&self) -> &WavMetadata {
+
+	pub fn metadata(&self) -> &Metadata {
 		&self.metadata
 	}
 }
 
 impl<R: MediaRead> Demuxer for WavDemuxer<R> {
-	fn streams(&self) -> &Streams {
-		&self.streams
-	}
-	fn read_packet(&mut self) -> Result<Option<Packet>> {
+	fn read(&mut self) -> Result<Option<Packet>> {
 		self.read_packet()
+	}
+
+	fn seek(&mut self, _time: f64) -> Result<()> {
+		Err(error!("seek not implemented for wav"))
+	}
+
+	fn duration(&self) -> Option<f64> {
+		let total_samples =
+			self.samples_read + (self.remaining_bytes / self.format.bytes_per_sample() as u64);
+		let sample_rate_hz = self.format.sample_rate.value();
+		Some(total_samples as f64 / sample_rate_hz as f64)
+	}
+
+	fn tracks(&self) -> Tracks {
+		Tracks::new(vec![self.track])
+	}
+
+	fn metadata(&self) -> &Metadata {
+		&self.metadata
 	}
 }

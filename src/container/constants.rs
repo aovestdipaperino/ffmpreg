@@ -1,32 +1,53 @@
-pub const MP4: &str = "mp4";
-pub const MKV: &str = "mkv";
-pub const MOV: &str = "mov";
-pub const WEBM: &str = "webm";
-pub const AVI: &str = "avi";
-pub const OGV: &str = "ogv";
-pub const FLV: &str = "flv";
-pub const MXF: &str = "mxf";
-pub const TS: &str = "ts";
+use crate::container::ContainerId;
+// ISO Base Media File Format (ISOBMFF)
+pub const MP4: ContainerId = ContainerId::new("mp4");
+pub const MOV: ContainerId = ContainerId::new("mov");
+pub const M4A: ContainerId = ContainerId::new("m4a");
+pub const M4V: ContainerId = ContainerId::new("m4v");
+pub const FMP4: ContainerId = ContainerId::new("fmp4");
 
-//
-pub const MP3: &str = "mp3";
-pub const AAC: &str = "aac";
-pub const OPUS: &str = "opus";
-pub const FLAC: &str = "flac";
-pub const WAV: &str = "wav";
-pub const RAW: &str = "raw";
-pub const PCM: &str = "pcm";
-pub const M4A: &str = "m4a";
-pub const ALAC: &str = "alac";
-pub const OGG: &str = "ogg";
+// matroska
+pub const MKV: ContainerId = ContainerId::new("mkv");
+pub const WEBM: ContainerId = ContainerId::new("webm");
 
-//
-pub const JPEG: &str = "jpeg";
-pub const JPG: &str = "jpg";
-pub const PNG: &str = "png";
-pub const BMP: &str = "bmp";
-pub const TIFF: &str = "tiff";
-pub const WEBP: &str = "webp";
+// MPEG
+pub const MPEG_PS: ContainerId = ContainerId::new("mpeg");
+pub const MPEG_TS: ContainerId = ContainerId::new("ts");
 
-/// Chunk size limit for demuxer packet reading (65KB)
+// AVI
+pub const AVI: ContainerId = ContainerId::new("avi");
+
+// flash
+pub const FLV: ContainerId = ContainerId::new("flv");
+
+// ogg
+pub const OGG: ContainerId = ContainerId::new("ogg");
+pub const OGA: ContainerId = ContainerId::new("oga");
+pub const OGV: ContainerId = ContainerId::new("ogv");
+
+// Aadio-specific
+pub const WAV: ContainerId = ContainerId::new("wav");
+pub const AIFF: ContainerId = ContainerId::new("aiff");
+pub const CAF: ContainerId = ContainerId::new("caf");
+
+// lossless / codec-wrapped
+pub const FLAC: ContainerId = ContainerId::new("flac");
+
+// MP3 container
+pub const MP3: ContainerId = ContainerId::new("mp3");
+
+// Images
+pub const PNG: ContainerId = ContainerId::new("png");
+pub const JPEG: ContainerId = ContainerId::new("jpeg");
+pub const JPG: ContainerId = ContainerId::new("jpg");
+pub const GIF: ContainerId = ContainerId::new("gif");
+pub const BMP: ContainerId = ContainerId::new("bmp");
+pub const TIFF: ContainerId = ContainerId::new("tiff"); // também .tif
+pub const WEBP: ContainerId = ContainerId::new("webp");
+pub const ICO: ContainerId = ContainerId::new("ico");
+pub const HEIF: ContainerId = ContainerId::new("heif");
+pub const AVIF: ContainerId = ContainerId::new("avif");
+
+// chunk size limit for demuxer packet reading (20KB)
+// pub const CHUNK_SIZE_LIMIT: usize = 20000;
 pub const CHUNK_SIZE_LIMIT: usize = 65536;

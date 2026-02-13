@@ -1,10 +1,14 @@
 #![allow(dead_code)]
 pub const DEFAULT_BUFFER_SIZE: usize = 8192;
-use crate::{error, message::Result};
+use crate::{error, message};
+use message::Result;
 
 pub trait MediaRead {
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
-	fn extension(&self) -> Option<String>;
+
+	fn stream_position(&mut self) -> Result<u64> {
+		Err(error!("stream_position not implemented for this reader"))
+	}
 }
 
 pub trait BinaryRead: MediaRead {
@@ -12,7 +16,7 @@ pub trait BinaryRead: MediaRead {
 		let mut filled = 0;
 		while filled < buf.len() {
 			match self.read(&mut buf[filled..]) {
-				Ok(0) => return Err(error!("unexpected EOF")),
+				Ok(0) => return Err(error!("unexpected eof")),
 				Ok(n) => filled += n,
 				Err(e) => return Err(e),
 			}
@@ -145,6 +149,28 @@ pub trait BinaryRead: MediaRead {
 		self.read_exact(&mut buf)?;
 		Ok(f64::from_le_bytes(buf))
 	}
+
+	#[inline]
+	fn read_u24_be(&mut self) -> Result<u32> {
+		let mut buf = [0u8; 3];
+		self.read_exact(&mut buf)?;
+		Ok(((buf[0] as u32) << 16) | ((buf[1] as u32) << 8) | (buf[2] as u32))
+	}
+
+	#[inline]
+	fn read_u24_le(&mut self) -> Result<u32> {
+		let mut buf = [0u8; 3];
+		self.read_exact(&mut buf)?;
+		Ok(((buf[2] as u32) << 16) | ((buf[1] as u32) << 8) | (buf[0] as u32))
+	}
+
+	fn peek_u8(&mut self) -> Result<u8> {
+		Err(error!("peek not implemented for this reader"))
+	}
+
+	fn read_available(&mut self) -> Result<Option<Vec<u8>>> {
+		Err(error!("read_available not implemented for this reader"))
+	}
 }
 
 impl<T: MediaRead> BinaryRead for T {}
@@ -178,23 +204,20 @@ impl<R> StdReadAdapter<R> {
 impl<R: std::io::Read> MediaRead for StdReadAdapter<R> {
 	#[inline]
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-		self.inner.read(buf).map_err(|e| crate::message::Message::from(e))
-	}
-	fn extension(&self) -> Option<String> {
-		None
+		self.inner.read(buf).map_err(|e| message::Message::from(e))
 	}
 }
 
-pub struct BufferedReader<R, const N: usize = DEFAULT_BUFFER_SIZE> {
+pub struct BufferedReader<R, const MAX_SIZE: usize = DEFAULT_BUFFER_SIZE> {
 	inner: R,
-	buffer: [u8; N],
+	buffer: [u8; MAX_SIZE],
 	pos: usize,
 	filled: usize,
 }
 
-impl<R, const N: usize> BufferedReader<R, N> {
+impl<R, const MAX_SIZE: usize> BufferedReader<R, MAX_SIZE> {
 	pub fn new(inner: R) -> Self {
-		Self { inner, buffer: [0u8; N], pos: 0, filled: 0 }
+		Self { inner, buffer: [0u8; MAX_SIZE], pos: 0, filled: 0 }
 	}
 
 	#[inline]
@@ -219,7 +242,7 @@ impl<R, const N: usize> BufferedReader<R, N> {
 
 	#[inline]
 	pub const fn capacity(&self) -> usize {
-		N
+		MAX_SIZE
 	}
 
 	#[inline]
@@ -257,9 +280,6 @@ impl<R: MediaRead, const N: usize> MediaRead for BufferedReader<R, N> {
 		self.consume(amt);
 		Ok(amt)
 	}
-	fn extension(&self) -> Option<String> {
-		None
-	}
 }
 
 impl MediaRead for &[u8] {
@@ -269,9 +289,6 @@ impl MediaRead for &[u8] {
 		buf[..amt].copy_from_slice(a);
 		*self = b;
 		Ok(amt)
-	}
-	fn extension(&self) -> Option<String> {
-		None
 	}
 }
 
@@ -285,7 +302,7 @@ pub trait BinaryWrite: MediaWrite {
 		let mut written = 0;
 		while written < buf.len() {
 			match self.write(&buf[written..]) {
-				Ok(0) => return Err(crate::error!("write returned zero")),
+				Ok(0) => return Err(error!("write returned zero")),
 				Ok(n) => written += n,
 				Err(e) => return Err(e),
 			}
@@ -369,37 +386,37 @@ pub trait BinaryWrite: MediaWrite {
 
 impl<T: MediaWrite> BinaryWrite for T {}
 
-pub struct StdWriteAdapter<W> {
-	inner: W,
+pub struct StdWriteAdapter<Writer> {
+	inner: Writer,
 }
 
-impl<W> StdWriteAdapter<W> {
+impl<Writer> StdWriteAdapter<Writer> {
 	#[inline]
-	pub const fn new(inner: W) -> Self {
+	pub const fn new(inner: Writer) -> Self {
 		Self { inner }
 	}
 	#[inline]
-	pub fn into_inner(self) -> W {
+	pub fn into_inner(self) -> Writer {
 		self.inner
 	}
 	#[inline]
-	pub const fn get_ref(&self) -> &W {
+	pub const fn get_ref(&self) -> &Writer {
 		&self.inner
 	}
 	#[inline]
-	pub fn get_mut(&mut self) -> &mut W {
+	pub fn get_mut(&mut self) -> &mut Writer {
 		&mut self.inner
 	}
 }
 
-impl<W: std::io::Write> MediaWrite for StdWriteAdapter<W> {
+impl<Writer: std::io::Write> MediaWrite for StdWriteAdapter<Writer> {
 	#[inline]
 	fn write(&mut self, buf: &[u8]) -> Result<usize> {
-		self.inner.write(buf).map_err(|e| crate::message::Message::from(e))
+		self.inner.write(buf).map_err(|e| message::Message::from(e))
 	}
 	#[inline]
 	fn flush(&mut self) -> Result<()> {
-		self.inner.flush().map_err(|e| crate::message::Message::from(e))
+		self.inner.flush().map_err(|e| message::Message::from(e))
 	}
 }
 
@@ -415,34 +432,34 @@ impl MediaWrite for Vec<u8> {
 	}
 }
 
-pub struct BufferedWriter<W, const N: usize = DEFAULT_BUFFER_SIZE> {
-	inner: W,
+pub struct BufferedWriter<Writer, const MAX_SIZE: usize = DEFAULT_BUFFER_SIZE> {
+	inner: Writer,
 	buffer: Vec<u8>,
 }
 
-impl<W, const N: usize> BufferedWriter<W, N> {
-	pub fn new(inner: W) -> Self {
-		Self { inner, buffer: Vec::with_capacity(N) }
+impl<Writer, const MAX_SIZE: usize> BufferedWriter<Writer, MAX_SIZE> {
+	pub fn new(inner: Writer) -> Self {
+		Self { inner, buffer: Vec::with_capacity(MAX_SIZE) }
 	}
 	#[inline]
-	pub fn into_inner(self) -> W {
+	pub fn into_inner(self) -> Writer {
 		self.inner
 	}
 	#[inline]
-	pub const fn get_ref(&self) -> &W {
+	pub const fn get_ref(&self) -> &Writer {
 		&self.inner
 	}
 	#[inline]
-	pub fn get_mut(&mut self) -> &mut W {
+	pub fn get_mut(&mut self) -> &mut Writer {
 		&mut self.inner
 	}
 	#[inline]
 	pub const fn capacity(&self) -> usize {
-		N
+		MAX_SIZE
 	}
 }
 
-impl<W: crate::io::MediaWrite, const N: usize> BufferedWriter<W, N> {
+impl<Writer: crate::io::MediaWrite, const MAX_SIZE: usize> BufferedWriter<Writer, MAX_SIZE> {
 	fn flush_buf(&mut self) -> Result<()> {
 		if !self.buffer.is_empty() {
 			let mut written = 0;
@@ -459,12 +476,14 @@ impl<W: crate::io::MediaWrite, const N: usize> BufferedWriter<W, N> {
 	}
 }
 
-impl<W: crate::io::MediaWrite, const N: usize> MediaWrite for BufferedWriter<W, N> {
+impl<Writer: crate::io::MediaWrite, const MAX_SIZE: usize> MediaWrite
+	for BufferedWriter<Writer, MAX_SIZE>
+{
 	fn write(&mut self, buf: &[u8]) -> Result<usize> {
-		if self.buffer.len() + buf.len() > N {
+		if self.buffer.len() + buf.len() > MAX_SIZE {
 			self.flush_buf()?;
 		}
-		if buf.len() >= N {
+		if buf.len() >= MAX_SIZE {
 			return self.inner.write(buf);
 		}
 		self.buffer.extend_from_slice(buf);

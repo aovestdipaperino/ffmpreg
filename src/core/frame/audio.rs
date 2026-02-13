@@ -1,15 +1,17 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AudioFormat {
-	PCM16,
-	PCM24,
-	PCM32,
-	FLAC,
-	AAC,
-	OPUS,
-	ADPCM,
+use serde::{Deserialize, Serialize};
+
+use crate::core::time::Timestamp;
+use std::fmt;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BitDepth {
+	Bit16,
+	Bit24,
+	Bit32,
+	Custom(u8),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Channels {
 	Mono,
 	Stereo,
@@ -19,73 +21,115 @@ pub enum Channels {
 	Custom(u8),
 }
 
-impl Channels {
-	pub fn count(&self) -> u8 {
-		match self {
-			Channels::Mono => 1,
-			Channels::Stereo => 2,
-			Channels::Quad => 4,
-			Channels::Surround => 6,
-			Channels::SevenPointOne => 8,
-			Channels::Custom(c) => *c,
-		}
-	}
-
-	pub fn name(&self) -> String {
-		match self {
-			Channels::Mono => "mono".into(),
-			Channels::Stereo => "stereo".into(),
-			Channels::Quad => "quad".into(),
-			Channels::Surround => "5.1".into(),
-			Channels::SevenPointOne => "7.1".into(),
-			Channels::Custom(c) => format!("{} channels", c),
-		}
-	}
-
-	/// Convert from u8 channel count to Channels enum
-	pub fn from_count(count: u8) -> Self {
-		match count {
-			1 => Channels::Mono,
-			2 => Channels::Stereo,
-			4 => Channels::Quad,
-			6 => Channels::Surround,
-			8 => Channels::SevenPointOne,
-			c => Channels::Custom(c),
-		}
-	}
-}
-
-impl AudioFormat {
-	pub fn bytes_per_sample(&self) -> Option<usize> {
-		match self {
-			AudioFormat::PCM16 => Some(2),
-			AudioFormat::PCM24 => Some(3),
-			AudioFormat::PCM32 => Some(4),
-			AudioFormat::FLAC | AudioFormat::AAC | AudioFormat::OPUS | AudioFormat::ADPCM => None,
-		}
-	}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SampleRate {
+	SR44_1K,
+	SR48K,
+	SR96K,
+	Custom(u32),
 }
 
 #[derive(Debug, Clone)]
 pub struct FrameAudio {
 	pub data: Vec<u8>,
-	pub sample_rate: u32,
+	pub sample_rate: SampleRate,
 	pub channels: Channels,
+	pub bit_depth: BitDepth,
 	pub nb_samples: usize,
-	pub format: AudioFormat,
+	pub pts: Timestamp,
+}
+
+impl BitDepth {
+	pub const fn bits(self) -> u8 {
+		match self {
+			Self::Bit16 => 16,
+			Self::Bit24 => 24,
+			Self::Bit32 => 32,
+			Self::Custom(b) => b,
+		}
+	}
+
+	pub const fn bytes(self) -> usize {
+		(self.bits() as usize) / 8
+	}
+
+	pub const fn from_bits(bits: u8) -> Option<Self> {
+		match bits {
+			16 => Some(Self::Bit16),
+			24 => Some(Self::Bit24),
+			32 => Some(Self::Bit32),
+			_ => None,
+		}
+	}
+
+	pub const fn from_bits_any(bits: u8) -> Self {
+		match bits {
+			16 => Self::Bit16,
+			24 => Self::Bit24,
+			32 => Self::Bit32,
+			bits => Self::Custom(bits),
+		}
+	}
+}
+
+impl Channels {
+	pub const fn count(self) -> u8 {
+		match self {
+			Self::Mono => 1,
+			Self::Stereo => 2,
+			Self::Quad => 4,
+			Self::Surround => 6,
+			Self::SevenPointOne => 8,
+			Self::Custom(c) => c,
+		}
+	}
+
+	pub const fn from_count(count: u8) -> Self {
+		match count {
+			1 => Self::Mono,
+			2 => Self::Stereo,
+			4 => Self::Quad,
+			6 => Self::Surround,
+			8 => Self::SevenPointOne,
+			count => Self::Custom(count),
+		}
+	}
+}
+
+impl SampleRate {
+	pub const fn value(self) -> u32 {
+		match self {
+			Self::SR44_1K => 44_100,
+			Self::SR48K => 48_000,
+			Self::SR96K => 96_000,
+			Self::Custom(simple_rate) => simple_rate,
+		}
+	}
+
+	pub const fn from_value(simple_rate: u32) -> Self {
+		match simple_rate {
+			44_100 => Self::SR44_1K,
+			48_000 => Self::SR48K,
+			96_000 => Self::SR96K,
+			simple_rate => Self::Custom(simple_rate),
+		}
+	}
 }
 
 impl FrameAudio {
-	pub fn new(data: Vec<u8>, sample_rate: u32, channels: Channels, format: AudioFormat) -> Self {
-		let nb_samples = match format.bytes_per_sample() {
-			Some(bps) => data.len() / (channels.count() as usize * bps),
-			None => 0,
-		};
-		Self { data, sample_rate, channels, nb_samples, format }
+	pub fn new(
+		data: Vec<u8>,
+		sample_rate: SampleRate,
+		channels: Channels,
+		bit_depth: BitDepth,
+	) -> Self {
+		let nb_samples = data.len() / (channels.count() as usize * bit_depth.bytes());
+		Self { data, sample_rate, channels, bit_depth, nb_samples, pts: Timestamp::default() }
 	}
 
-	pub fn frame_size(&self) -> Option<usize> {
-		self.format.bytes_per_sample().map(|bps| bps * self.channels.count() as usize * self.nb_samples)
+	#[inline(always)]
+	pub const fn frame_size(&self) -> usize {
+		self.nb_samples * self.channels.count() as usize * self.bit_depth.bytes()
 	}
 
 	pub fn with_nb_samples(mut self, nb_samples: usize) -> Self {
@@ -93,12 +137,58 @@ impl FrameAudio {
 		self
 	}
 
-	pub fn with_format(mut self, format: AudioFormat) -> Self {
-		self.format = format;
+	pub fn with_bit_depth(mut self, bit_depth: BitDepth) -> Self {
+		self.bit_depth = bit_depth;
 		self
 	}
 
-	pub fn is_compressed(&self) -> bool {
-		self.format.bytes_per_sample().is_none()
+	pub fn with_pts(mut self, pts: Timestamp) -> Self {
+		self.pts = pts;
+		self
+	}
+
+	pub const fn duration_seconds(&self) -> f64 {
+		self.nb_samples as f64 / self.sample_rate.value() as f64
+	}
+}
+
+impl fmt::Display for BitDepth {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Bit16 => write!(f, "16-bit"),
+			Self::Bit24 => write!(f, "24-bit"),
+			Self::Bit32 => write!(f, "32-bit"),
+			Self::Custom(b) => write!(f, "{}-bit", b),
+		}
+	}
+}
+
+impl fmt::Display for Channels {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let s = match self {
+			Self::Mono => "mono",
+			Self::Stereo => "stereo",
+			Self::Quad => "quad",
+			Self::Surround => "5.1",
+			Self::SevenPointOne => "7.1",
+			Self::Custom(numbers) => {
+				if *numbers > 1 {
+					return write!(f, "{} channels", numbers);
+				}
+				return write!(f, "{} channel", numbers);
+			}
+		};
+		write!(f, "{}", s)
+	}
+}
+
+impl fmt::Display for SampleRate {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::SR44_1K => write!(f, "44.1kHz"),
+			Self::SR48K => write!(f, "48kHz"),
+			Self::SR96K => write!(f, "96kHz"),
+			Self::Custom(sample_rate) => write!(f, "{}Hz", sample_rate),
+		}
 	}
 }

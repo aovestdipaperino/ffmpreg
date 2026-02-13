@@ -1,49 +1,44 @@
 use crate::container::wav::format::WavFormat;
-use crate::core::frame::{AudioFormat, Channels, Frame, FrameAudio};
+use crate::core::frame::{BitDepth, Channels, Frame, FrameAudio, FrameIter, SampleRate};
 use crate::core::packet::Packet;
+use crate::core::track::AudioFormat;
 use crate::core::traits::Decoder;
 use crate::message::Result;
 
 pub struct PcmDecoder {
-	sample_rate: u32,
+	sample_rate: SampleRate,
 	channels: Channels,
-	bytes_per_sample: usize,
+	bit_depth: BitDepth,
 }
 
 impl PcmDecoder {
-	pub fn new(sample_rate: u32, channels: Channels, bytes_per_sample: usize) -> Self {
-		Self { sample_rate, channels, bytes_per_sample }
+	pub fn new(sample_rate: SampleRate, channels: Channels, bit_depth: BitDepth) -> Self {
+		Self { sample_rate, channels, bit_depth }
 	}
 
-	pub fn new_from_metadata(metadata: &WavFormat) -> Self {
-		Self::new(metadata.sample_rate, metadata.channels, metadata.bytes_per_sample())
+	pub fn from_format(format: &AudioFormat) -> Self {
+		Self::new(format.sample_rate, format.channels, format.bit_depth)
+	}
+
+	pub fn from_wav(wav: &WavFormat) -> Self {
+		let bit_depth = BitDepth::from_bits_any((wav.bytes_per_sample() * 8) as u8);
+		Self::new(wav.sample_rate, wav.channels, bit_depth)
 	}
 }
 
 impl Decoder for PcmDecoder {
-	fn decode(&mut self, packet: Packet) -> Result<Option<Frame>> {
+	fn decode(&mut self, packet: Packet) -> Result<FrameIter> {
 		if packet.is_empty() {
-			return Ok(None);
+			return Ok(FrameIter::empty());
 		}
 
-		let nb_samples = packet.data.len() / (self.channels.count() as usize * self.bytes_per_sample);
+		let audio = FrameAudio::new(packet.data, self.sample_rate, self.channels, self.bit_depth);
+		let frame = Frame::new_audio(audio, packet.track_id);
 
-		let audio_format = match self.bytes_per_sample {
-			2 => AudioFormat::PCM16,
-			3 => AudioFormat::PCM24,
-			4 => AudioFormat::PCM32,
-			_ => AudioFormat::PCM16,
-		};
-
-		let audio = FrameAudio::new(packet.data, self.sample_rate, self.channels, audio_format);
-		let audio = audio.with_nb_samples(nb_samples);
-
-		let frame = Frame::new_audio(audio, packet.stream_id);
-
-		Ok(Some(frame.with_pts(packet.pts)))
+		Ok(FrameIter::new(vec![frame]))
 	}
 
-	fn flush(&mut self) -> Result<Option<Frame>> {
-		Ok(None)
+	fn finish(&mut self) -> Result<FrameIter> {
+		Ok(FrameIter::empty())
 	}
 }

@@ -1,30 +1,77 @@
-// modern codecs
-pub const H264: &str = "h264";
-pub const H265: &str = "h265";
-pub const AV1: &str = "av1";
-pub const VP8: &str = "vp8";
-pub const VP9: &str = "vp9";
+use crate::core::CodecId;
 
-// sinônimo de H265
-pub const HEVC: &str = "hevc";
+#[rustfmt::skip]
+pub const H265: CodecId = CodecId::new("h265").aliases(&["hevc"])
+  .exts(&["mp4", "mkv", "mov"]);
+
+#[rustfmt::skip]
+pub const H264: CodecId = CodecId::new("h264")
+  .exts(&["mp4", "mkv", "mov"]);
+
+#[rustfmt::skip]
+pub const VP8: CodecId = CodecId::new("vp8")
+  .exts(&["webm", "mkv"]);
+
+#[rustfmt::skip]
+pub const VP9: CodecId = CodecId::new("vp9")
+  .exts(&["webm", "mkv"]);
+
+#[rustfmt::skip]
+pub const AV1: CodecId = CodecId::new("av1")
+  .exts(&["mkv", "mp4", "webm"]);
 
 // older / legacy codecs
-pub const MPEG2: &str = "mpeg2";
-pub const MPEG4: &str = "mpeg4";
-pub const THEORA: &str = "theora";
-pub const VP6: &str = "vp6";
-pub const WMV1: &str = "wmv1";
-pub const WMV2: &str = "wmv2";
-pub const WMV3: &str = "wmv3";
+#[rustfmt::skip]
+pub const MPEG2: CodecId = CodecId::new("mpeg2")
+  .exts(&["mpg", "mpeg", "ts"]);
+
+#[rustfmt::skip]
+pub const MPEG4: CodecId = CodecId::new("mpeg4")
+  .exts(&["mp4", "avi"]);
+
+#[rustfmt::skip]
+pub const THEORA: CodecId = CodecId::new("theora")
+  .exts(&["ogv", "mkv"]);
+
+#[rustfmt::skip]
+pub const VP6: CodecId = CodecId::new("vp6")
+  .exts(&["flv"]);
+
+#[rustfmt::skip]
+pub const WMV1: CodecId = CodecId::new("wmv1")
+  .exts(&["wmv"]);
+
+#[rustfmt::skip]
+pub const WMV2: CodecId = CodecId::new("wmv2")
+  .exts(&["wmv"]);
+
+#[rustfmt::skip]
+pub const WMV3: CodecId = CodecId::new("wmv3")
+  .exts(&["wmv"]);
 
 // motion JPEG
-pub const MJPEG: &str = "mjpeg";
-pub const JPEG2000: &str = "jpeg2000";
+#[rustfmt::skip]
+pub const MJPEG: CodecId = CodecId::new("mjpeg")
+  .exts(&["avi", "mjpg"]);
+
+#[rustfmt::skip]
+pub const JPEG2000: CodecId = CodecId::new("jpeg2000")
+  .exts(&["jp2", "mxf"]);
 
 // specialized / less common
-pub const PRORES: &str = "prores";
-pub const DNXHD: &str = "dnxhd";
-pub const DNXHR: &str = "dnxhr";
+#[rustfmt::skip]
+pub const PRORES: CodecId = CodecId::new("prores")
+  .exts(&["mov", "mxf"]);
+
+#[rustfmt::skip]
+pub const DNXHD: CodecId = CodecId::new("dnxhd")
+  .exts(&["mxf"]);
+
+#[rustfmt::skip]
+pub const DNXHR: CodecId = CodecId::new("dnxhr")
+  .exts(&["mxf"]);
 
 // experimental / emerging
-pub const VP10: &str = "vp10";
+#[rustfmt::skip]
+pub const VP10: CodecId = CodecId::new("vp10")
+  .exts(&["webm", "mkv"]);
