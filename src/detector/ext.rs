@@ -31,6 +31,7 @@ pub fn from_extension(ext: &str) -> Option<container::ContainerId> {
 		"avi" => Some(container::AVI),
 		"flv" => Some(container::FLV),
 		"mpeg" | "mpg" | "mpe" => Some(container::MP4),
+		"yuv" => Some(container::YUV),
 
 		// Image
 		"png" => Some(container::PNG),
