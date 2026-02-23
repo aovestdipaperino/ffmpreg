@@ -7,8 +7,7 @@ use crate::{error, message::Result};
 
 pub struct WavMuxer<W: MediaWrite + MediaSeek> {
 	writer: W,
-	#[allow(dead_code)]
-	format: WavFormat,
+	_format: WavFormat,
 	metadata: Option<Metadata>,
 	data_size: u32,
 	data_size_pos: u64,
@@ -20,7 +19,7 @@ impl<W: MediaWrite + MediaSeek> WavMuxer<W> {
 		let (file_size_pos, data_size_pos) = Self::write_header(&mut writer, &format)?;
 		writer.flush()?;
 
-		Ok(Self { writer, format, metadata: None, data_size: 0, data_size_pos, file_size_pos })
+		Ok(Self { writer, _format: format, metadata: None, data_size: 0, data_size_pos, file_size_pos })
 	}
 
 	pub fn from_format(writer: W, format: &Format) -> Result<Self> {
