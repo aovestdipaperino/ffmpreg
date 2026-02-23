@@ -11,10 +11,7 @@ pub use iter::InputPacketIter;
 use std::path::{Path, PathBuf};
 
 pub struct Input {
-	#[allow(dead_code)]
 	pub path: PathBuf,
-	#[allow(dead_code)]
-	extension: String,
 	demuxer: Box<dyn Demuxer>,
 	pub tracks: Tracks,
 }
@@ -34,7 +31,7 @@ impl Input {
 		let file = File::open(&path_str)?;
 		let demuxer = resolver.open_demuxer(&extension, file)?;
 		let tracks = demuxer.tracks();
-		Ok(Self { path: path_ref.to_path_buf(), extension, demuxer, tracks })
+		Ok(Self { path: path_ref.to_path_buf(), demuxer, tracks })
 	}
 
 	#[inline(always)]
