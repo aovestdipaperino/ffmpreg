@@ -16,18 +16,24 @@ impl Selector {
 		}
 	}
 
+	pub fn all_selected(&self) -> bool {
+		matches!(self, Selector::All)
+	}
+
 	pub fn from_kv(kv: &Kv) -> message::Result<Option<Self>> {
-		let selector = match kv.get("track") {
+		let selector = match kv.get("track").or(kv.get("t")) {
 			None => return Ok(None),
 			Some(track) => match track.as_str() {
 				"all" | "*" => Some(Selector::All),
-				track => {
-					let value = track.parse().map_err(|_| error!("unable to parse track '{}'", track))?;
-					Some(Selector::Id(value))
-				}
+				track => Some(Selector::Id(Self::parse_id(track)?)),
 			},
 		};
 		Ok(selector)
+	}
+
+	fn parse_id(track: &str) -> message::Result<usize> {
+		let value = track.parse().map_err(|_| error!("unable to parse track '{}'", track))?;
+		Ok(value)
 	}
 }
 
