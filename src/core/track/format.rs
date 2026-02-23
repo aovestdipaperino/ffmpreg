@@ -1,5 +1,6 @@
 use crate::{
 	container::wav::WavFormat,
+	container::yuv::YuvFormat,
 	core::frame::{BitDepth, Channels, SampleRate},
 };
 use core::fmt;
@@ -59,11 +60,22 @@ pub enum TrackFormat {
 #[derive(Debug, Clone)]
 pub enum Format {
 	Wav(WavFormat),
-	Flac,
-	Ogg,
-	Vorbis,
-	Mp3,
-	Aac,
+	Flac(AudioFormat),
+	Ogg(AudioFormat),
+	Vorbis(AudioFormat),
+	Mp3(AudioFormat),
+	Aac(AudioFormat),
+	Yuv(YuvFormat),
+}
+
+impl Default for AudioFormat {
+	fn default() -> Self {
+		Self {
+			channels: Channels::Stereo,
+			bit_depth: BitDepth::Bit16,
+			sample_rate: SampleRate::SR44_1K,
+		}
+	}
 }
 
 impl Format {
@@ -72,23 +84,27 @@ impl Format {
 	}
 
 	pub fn flac() -> Self {
-		Self::Flac
+		Self::Flac(AudioFormat::default())
 	}
 
 	pub fn ogg() -> Self {
-		Self::Ogg
+		Self::Ogg(AudioFormat::default())
 	}
 
 	pub fn vorbis() -> Self {
-		Self::Vorbis
+		Self::Vorbis(AudioFormat::default())
 	}
 
 	pub fn mp3() -> Self {
-		Self::Mp3
+		Self::Mp3(AudioFormat::default())
 	}
 
 	pub fn aac() -> Self {
-		Self::Aac
+		Self::Aac(AudioFormat::default())
+	}
+
+	pub fn yuv() -> Self {
+		Self::Yuv(YuvFormat::default())
 	}
 
 	pub fn from_container(container: crate::container::ContainerId) -> crate::message::Result<Self> {
@@ -97,7 +113,33 @@ impl Format {
 			"flac" => Ok(Self::flac()),
 			"ogg" | "oga" => Ok(Self::ogg()),
 			"mp3" => Ok(Self::mp3()),
+			"yuv" => Ok(Self::yuv()),
 			_ => Err(crate::error!("unsupported container '{}'", container.name)),
+		}
+	}
+
+	pub fn apply_codec(&mut self, codec: &str) -> crate::message::Result<()> {
+		match self {
+			Format::Wav(wav) => wav.apply_codec(codec).map_err(|e| crate::error!("{}", e)),
+			_ => Err(crate::error!("codec override not supported for '{}'", self)),
+		}
+	}
+
+	pub fn inherit_audio(&mut self, audio: &AudioFormat) {
+		match self {
+			Format::Wav(wav) => {
+				wav.sample_rate = audio.sample_rate;
+				wav.channels = audio.channels;
+			}
+			Format::Flac(fmt)
+			| Format::Ogg(fmt)
+			| Format::Vorbis(fmt)
+			| Format::Mp3(fmt)
+			| Format::Aac(fmt) => {
+				fmt.sample_rate = audio.sample_rate;
+				fmt.channels = audio.channels;
+			}
+			Format::Yuv(_) => {}
 		}
 	}
 }
@@ -106,11 +148,12 @@ impl fmt::Display for Format {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Format::Wav(_) => write!(f, "wav"),
-			Format::Flac => write!(f, "flac"),
-			Format::Ogg => write!(f, "ogg"),
-			Format::Vorbis => write!(f, "vorbis"),
-			Format::Mp3 => write!(f, "mp3"),
-			Format::Aac => write!(f, "aac"),
+			Format::Flac(_) => write!(f, "flac"),
+			Format::Ogg(_) => write!(f, "ogg"),
+			Format::Vorbis(_) => write!(f, "vorbis"),
+			Format::Mp3(_) => write!(f, "mp3"),
+			Format::Aac(_) => write!(f, "aac"),
+			Format::Yuv(_) => write!(f, "yuv"),
 		}
 	}
 }
