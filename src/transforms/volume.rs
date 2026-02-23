@@ -1,8 +1,6 @@
-use crate::core::Transform;
-use crate::core::frame::Frame;
+use crate::core::traits::Transform;
 use crate::message::Result;
 
-#[allow(dead_code)]
 pub struct Volume {
 	factor: f32,
 }
@@ -14,8 +12,11 @@ impl Volume {
 }
 
 impl Transform for Volume {
-	fn apply(&mut self, frame: Frame) -> Result<Frame> {
-		Ok(frame)
+	fn apply(&mut self, samples: &mut [f32]) -> Result<()> {
+		for s in samples.iter_mut() {
+			*s = (*s * self.factor).clamp(-1.0, 1.0);
+		}
+		Ok(())
 	}
 
 	fn name(&self) -> &'static str {
