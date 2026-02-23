@@ -1,10 +1,8 @@
-pub mod converter;
 pub mod demuxer;
 pub mod format;
 pub mod header;
 pub mod muxer;
 mod register;
-pub mod utils;
 pub use demuxer::WavDemuxer;
 pub use format::*;
 pub use muxer::WavMuxer;
