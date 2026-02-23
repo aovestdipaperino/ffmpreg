@@ -2,6 +2,7 @@ mod container;
 pub mod format;
 pub mod mkv;
 pub mod wav;
+pub mod yuv;
 
 mod constants;
 mod register;
