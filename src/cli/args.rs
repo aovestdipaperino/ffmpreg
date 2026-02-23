@@ -1,52 +1,49 @@
+use crate::cli::stream::StreamOption;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone)]
-pub enum Cli {
-	Command(Command),
-	Convert(ConvertOptions),
+#[derive(Debug)]
+pub struct Cli {
+	pub command: Commands,
 }
 
-#[derive(Debug, Clone)]
-pub enum Command {
-	Probe(ProbeCommand),
-	Play(PlayCommand),
+#[derive(Debug)]
+pub enum Commands {
+	Play(PlayArgs),
+	Probe(ProbeArgs),
+	Run(RunArgs),
 }
 
-#[derive(Debug, Clone)]
-pub struct PlayCommand {
+#[derive(Debug)]
+pub struct PlayArgs {
 	pub input: PathBuf,
-	pub output: Option<PathBuf>,
-	pub base: BaseOptions,
-}
 
-#[derive(Debug, Clone)]
-pub struct ProbeCommand {
-	pub input: PathBuf,
-	pub output: Option<PathBuf>,
-	pub json: Option<JsonOption>,
-
-	pub base: BaseOptions,
-}
-
-#[derive(Clone, Debug, Default)]
-pub enum JsonOption {
-	Pretty,
-	#[default]
-	Raw,
-}
-
-#[derive(Debug, Clone)]
-pub struct ConvertOptions {
-	pub input: PathBuf,
-	pub output: PathBuf,
-
-	pub base: BaseOptions,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct BaseOptions {
 	pub audio: Vec<String>,
 	pub video: Vec<String>,
 	pub subtitle: Vec<String>,
+
+	pub apply: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct ProbeArgs {
+	pub input: PathBuf,
+	pub output: Option<PathBuf>,
+
+	pub audio: Vec<String>,
+	pub video: Vec<String>,
+	pub subtitle: Vec<String>,
+
+	pub apply: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct RunArgs {
+	pub input: PathBuf,
+	pub output: PathBuf,
+
+	pub audio: Vec<String>,
+	pub video: Vec<String>,
+	pub subtitle: Vec<String>,
+
 	pub apply: Vec<String>,
 }
