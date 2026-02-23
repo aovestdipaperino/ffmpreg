@@ -1,6 +1,7 @@
-use osaka::{cli, message::*};
+use osaka::{cli, message::Report};
 
 fn main() {
-	let args = cli::parse_cli().report();
-	cli::runner(args).report();
+	let args = cli::Cli::parse().report();
+	println!("{:?}", args);
+	// cli::runner(args).report();
 }
