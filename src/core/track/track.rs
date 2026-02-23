@@ -1,6 +1,7 @@
-use super::{AudioFormat, TrackFormat};
+use super::{AudioFormat, TrackFormat, VideoFormat};
+use crate::core::resolver::CodecResolver;
 use crate::core::time::Timestamp;
-use crate::core::{CodecId, Selector};
+use crate::core::{CodecId, Decoder, Selector};
 use crate::error;
 use crate::message::Result;
 
@@ -8,14 +9,14 @@ use crate::message::Result;
 pub struct Track {
 	pub id: usize,
 	pub codec_in: CodecId,
-	pub codec_out: CodecId,
 	pub timestamp: Timestamp,
 	pub format: TrackFormat,
 }
 
 impl Track {
-	pub fn add_codec_out(&mut self, codec_out: CodecId) {
-		self.codec_out = codec_out
+	pub fn decoder(&self, resolver: &CodecResolver) -> Result<Box<dyn Decoder>> {
+		let decoder = resolver.decoder_for(self)?;
+		Ok(decoder)
 	}
 
 	pub fn is_audio(&self) -> bool {
@@ -39,6 +40,20 @@ impl Track {
 			_ => None,
 		}
 	}
+
+	pub fn video_format(&self) -> Option<&VideoFormat> {
+		match &self.format {
+			TrackFormat::Video(format) => Some(format),
+			_ => None,
+		}
+	}
+
+	pub fn video_format_mut(&mut self) -> Option<&mut VideoFormat> {
+		match &mut self.format {
+			TrackFormat::Video(format) => Some(format),
+			_ => None,
+		}
+	}
 }
 
 #[derive(Debug)]
@@ -56,11 +71,7 @@ impl Tracks {
 	}
 
 	pub fn primary_audio(&self) -> Result<&Track> {
-		let audio_tracks: Vec<&Track> = self.iter().filter(|track| track.is_audio()).collect();
-		if audio_tracks.is_empty() {
-			return Err(error!("no audio tracks found"));
-		}
-		Ok(audio_tracks[0])
+		self.iter().find(|track| track.is_audio()).ok_or_else(|| error!("no audio tracks found"))
 	}
 
 	pub fn by_id(&self, id: usize) -> Option<&Track> {
@@ -70,7 +81,7 @@ impl Tracks {
 	pub fn by_id_mut(&mut self, id: usize) -> Option<&mut Track> {
 		self.iter_mut().find(|track| track.id == id)
 	}
-	pub fn audio_selector(&mut self, selector: &Selector) -> Result<Vec<&Track>> {
+	pub fn audio_selector(&self, selector: &Selector) -> Result<Vec<&Track>> {
 		if let Selector::Id(track_id) = selector {
 			let track = self.by_id(*track_id).ok_or_else(|| error!("track={} not found", track_id))?;
 			if track.is_audio() {
@@ -82,6 +93,14 @@ impl Tracks {
 		let tracks = self.audio_tracks();
 
 		if tracks.is_empty() { Err(error!("no audio tracks found")) } else { Ok(tracks) }
+	}
+
+	pub fn select_stream(&self, selector: &Selector) -> Result<&Track> {
+		if let Selector::Id(track_id) = selector {
+			let track = self.by_id(*track_id).ok_or_else(|| error!("track={} not found", track_id))?;
+			return Ok(track);
+		}
+		Err(error!("unsupported all selector"))
 	}
 
 	pub fn video_selector(&self, selector: &Selector) -> Result<Vec<&Track>> {
@@ -98,7 +117,7 @@ impl Tracks {
 		if tracks.is_empty() { Err(error!("no video tracks found")) } else { Ok(tracks) }
 	}
 
-	pub fn audio_tracks(&mut self) -> Vec<&Track> {
+	pub fn audio_tracks(&self) -> Vec<&Track> {
 		self.iter().filter(|track| track.is_audio()).collect()
 	}
 
