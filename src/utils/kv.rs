@@ -2,11 +2,12 @@ use rustc_hash::FxHashMap;
 
 use crate::{error, message};
 
-pub struct Kv<'a> {
+#[derive(Debug)]
+pub struct KeyValue<'a> {
 	map: FxHashMap<&'a str, &'a str>,
 }
 
-impl<'a> Kv<'a> {
+impl<'a> KeyValue<'a> {
 	pub fn parse(line: &'a str) -> message::Result<Self> {
 		let parts = line.split_whitespace();
 		let mut map = FxHashMap::default();
