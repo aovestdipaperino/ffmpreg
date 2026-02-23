@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::core::time::Timestamp;
+use crate::core::resampler::pcm::PcmResampler;
+use crate::core::{time::Timestamp, track};
+use crate::message;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -149,6 +151,25 @@ impl FrameAudio {
 
 	pub const fn duration_seconds(&self) -> f64 {
 		self.nb_samples as f64 / self.sample_rate.value() as f64
+	}
+
+	pub fn audio_format(&self) -> track::AudioFormat {
+		track::AudioFormat {
+			sample_rate: self.sample_rate,
+			channels: self.channels,
+			bit_depth: self.bit_depth,
+		}
+	}
+
+	pub fn as_samples(&self) -> message::Result<Vec<f32>> {
+		let pcm = PcmResampler::new(self.bit_depth, self.bit_depth);
+		pcm.decode(&self.data)
+	}
+
+	pub fn set_samples(&mut self, samples: &[f32]) -> message::Result<()> {
+		let pcm = PcmResampler::new(self.bit_depth, self.bit_depth);
+		self.data = pcm.encode(samples)?;
+		Ok(())
 	}
 }
 
