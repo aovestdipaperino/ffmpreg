@@ -73,6 +73,7 @@ impl Detector {
 			"avi" if VideoMatcher::avi(buf) => Some(Detector::from_video(container)),
 			"flv" if VideoMatcher::flv(buf) => Some(Detector::from_video(container)),
 			"mpeg" if VideoMatcher::mpeg(buf) => Some(Detector::from_video(container)),
+			"yuv" => Some(Detector::from_video(container)),
 
 			// Image
 			"png" if ImageMatcher::png(buf) => Some(Detector::from_image(container)),
