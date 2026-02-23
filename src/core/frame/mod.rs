@@ -76,9 +76,25 @@ impl Frame {
 	}
 
 	#[inline(always)]
+	pub fn video_mut(&mut self) -> Option<&mut FrameVideo> {
+		match &mut self.data {
+			FrameData::Video(video) => Some(video),
+			_ => None,
+		}
+	}
+
+	#[inline(always)]
 	pub fn into_audio(self) -> Option<FrameAudio> {
 		match self.data {
 			FrameData::Audio(audio) => Some(audio),
+			_ => None,
+		}
+	}
+
+	#[inline(always)]
+	pub fn into_video(self) -> Option<FrameVideo> {
+		match self.data {
+			FrameData::Video(video) => Some(video),
 			_ => None,
 		}
 	}
