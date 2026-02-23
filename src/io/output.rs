@@ -7,8 +7,37 @@ use crate::message::Result;
 use crate::utils;
 use std::path::{Path, PathBuf};
 
+pub struct OutputBuilder<'a, P: AsRef<Path>> {
+	path: P,
+	resolver: &'a ContainerResolver,
+	format: Format,
+}
+
+impl<'a, P: AsRef<Path>> OutputBuilder<'a, P> {
+	pub fn inherit_from(mut self, input: &crate::io::Input) -> Self {
+		if let Some(audio) = input.tracks.primary_audio().ok().and_then(|t| t.audio_format()) {
+			self.format.inherit_audio(audio);
+		}
+		self
+	}
+
+	pub fn format_mut(&mut self) -> &mut Format {
+		&mut self.format
+	}
+
+	pub fn build(self) -> Result<Output> {
+		let path_ref = self.path.as_ref();
+		let extension = utils::extension_from_path(path_ref)?;
+		let path_str = path_ref.to_string_lossy();
+
+		let file = File::create(&path_str)?;
+		let muxer = self.resolver.open_muxer(&extension, file, &self.format)?;
+
+		Ok(Output { path: path_ref.to_path_buf(), extension, format: self.format, muxer })
+	}
+}
+
 pub struct Output {
-	#[allow(dead_code)]
 	pub path: PathBuf,
 	pub extension: String,
 	format: Format,
@@ -21,19 +50,19 @@ impl Output {
 		Self::from_resolver(path, &resolver)
 	}
 
-	#[inline]
-	pub fn from_resolver<P: AsRef<Path>>(path: P, resolver: &ContainerResolver) -> Result<Self> {
-		let path_ref = path.as_ref();
-		let extension = utils::extension_from_path(path_ref)?;
-		let path_str = path_ref.to_string_lossy();
-
+	pub fn builder<'a, P: AsRef<Path>>(
+		path: P,
+		resolver: &'a ContainerResolver,
+	) -> Result<OutputBuilder<'a, P>> {
+		let extension = utils::extension_from_path(path.as_ref())?;
 		let container = resolver.resolver_for(&extension)?;
 		let format = Format::from_container(container)?;
+		Ok(OutputBuilder { path, resolver, format })
+	}
 
-		let file = File::create(&path_str)?;
-		let muxer = resolver.open_muxer(&extension, file, &format)?;
-
-		Ok(Self { path: path_ref.to_path_buf(), extension, format, muxer })
+	#[inline]
+	pub fn from_resolver<P: AsRef<Path>>(path: P, resolver: &ContainerResolver) -> Result<Self> {
+		Self::builder(path, resolver)?.build()
 	}
 
 	pub const fn format(&self) -> &Format {
