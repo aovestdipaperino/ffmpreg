@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::fmt;
 
 #[derive(Debug, Clone, Default)]
@@ -17,7 +17,7 @@ pub struct Metadata {
 	pub lyrics: Option<String>,
 	pub comment: Option<String>,
 	pub images: Option<Vec<AttachedImage>>,
-	pub raw: Option<HashMap<String, RawValue>>,
+	pub raw: Option<FxHashMap<String, RawValue>>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,7 +78,7 @@ impl Metadata {
 
 	pub fn set_raw(&mut self, key: &str, value: RawValue) {
 		if self.raw.is_none() {
-			self.raw = Some(HashMap::new());
+			self.raw = Some(FxHashMap::default());
 		}
 		if let Some(ref mut raw) = self.raw {
 			raw.insert(key.to_string(), value);
@@ -103,8 +103,8 @@ impl Metadata {
 			&& self.raw.is_none()
 	}
 
-	pub fn export_fields(&self) -> HashMap<String, String> {
-		let mut fields = HashMap::new();
+	pub fn export_fields(&self) -> FxHashMap<String, String> {
+		let mut fields = FxHashMap::with_capacity_and_hasher(10, Default::default());
 
 		if let Some(ref value) = self.title {
 			fields.insert("title".to_string(), value.clone());
