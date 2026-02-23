@@ -1,38 +1,44 @@
-use crate::message::{Message, Result};
+use crate::error;
+use crate::message::*;
 use std::iter::Peekable;
 
-pub struct ArgIter<I: Iterator<Item = String>> {
-	iter: Peekable<I>,
+pub struct Iter {
+	args: Peekable<std::env::Args>,
 }
 
-impl<I: Iterator<Item = String>> ArgIter<I> {
-	pub fn new(iter: I) -> Self {
-		Self { iter: iter.peekable() }
+impl Iter {
+	pub fn new() -> Self {
+		let mut iterator = std::env::args().peekable();
+		iterator.next(); // skip bin
+		Iter { args: iterator }
 	}
 
 	pub fn next(&mut self) -> Option<String> {
-		self.iter.next()
+		self.args.next().map(|s| s.trim().to_string())
 	}
 
 	pub fn peek(&mut self) -> Option<&str> {
-		self.iter.peek().map(String::as_str)
+		self.args.peek().map(|s| s.trim())
 	}
 
-	pub fn next_required(&mut self, msg: &str) -> Result<String> {
-		self.next().ok_or(Message::error(msg))
+	pub fn expect(&mut self, expected: &str) -> Result<()> {
+		match self.next() {
+			Some(arg) if arg == expected => Ok(()),
+			Some(arg) => Err(error!("expected '{}', found '{}'", expected, arg)),
+			None => Err(error!("expected '{}', found nothing", expected)),
+		}
 	}
 
-	pub fn read_values(&mut self) -> String {
-		let mut out = String::new();
-
-		while let Some(value) = self.peek() {
-			if value.starts_with('-') {
+	pub fn take_until_flag(&mut self) -> Result<String> {
+		let mut args = String::new();
+		loop {
+			let is_flag = self.peek().map_or(true, |p| p.starts_with('-'));
+			if is_flag {
 				break;
 			}
-			out.push_str(&self.next().unwrap());
-			out.push(' ');
+			let value = self.next().unwrap();
+			args = format!("{} {}", args, value).trim().to_string();
 		}
-
-		out.trim().to_string()
+		Ok(args)
 	}
 }
