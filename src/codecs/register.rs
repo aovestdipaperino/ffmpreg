@@ -1,10 +1,12 @@
 use crate::codecs::pcm;
+use crate::codecs::yuv;
 use crate::core::resolver;
 use rustc_hash::FxHashMap;
 
 pub fn register_codecs() -> resolver::CodecFactoryMapper {
 	let mut mapper = FxHashMap::default();
 	pcm::register::register_pcm_codecs(&mut mapper);
+	yuv::register::register_yuv_codecs(&mut mapper);
 	mapper
 }
 
@@ -31,7 +33,8 @@ pub fn register_codecs_ids() -> (resolver::CodecIdMapper, resolver::CodecExtMapp
     H265, H264, VP8, VP9, AV1,
     MPEG2, MPEG4, THEORA, VP6,
     WMV1, WMV2, WMV3, MJPEG, JPEG2000,
-    PRORES, DNXHD, DNXHR, VP10
+    PRORES, DNXHD, DNXHR, VP10,
+    YUV420P
 		];
 
 	codecs.iter().for_each(|&codec| {
