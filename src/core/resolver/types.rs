@@ -2,7 +2,7 @@ use rustc_hash::FxHashMap;
 
 use crate::container::ContainerId;
 use crate::core::track::Format;
-use crate::core::{CodecId, Decoder, Encoder};
+use crate::core::{CodecId, Decoder, Encoder, traits};
 use crate::core::{Demuxer, Muxer, Track};
 use crate::io::File;
 use crate::message::Result;
@@ -38,3 +38,10 @@ pub struct ContainerEntry {
 
 pub type ContainerMapper = FxHashMap<ContainerId, ContainerEntry>;
 pub type ContainerExtMapper = FxHashMap<&'static str, ContainerId>;
+
+// transforms
+
+pub type TransformFactory = fn(&str) -> Result<Box<dyn traits::Transform>>;
+
+pub type TransformMapper = FxHashMap<&'static str, TransformFactory>;
+pub type TransformRegister = fn(&mut TransformMapper);
