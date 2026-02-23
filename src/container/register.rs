@@ -1,4 +1,5 @@
-use crate::{container::wav, core::resolver};
+use crate::container::{wav, yuv};
+use crate::core::resolver;
 use rustc_hash::FxHashMap;
 
 pub fn register_containers() -> (resolver::ContainerMapper, resolver::ContainerExtMapper) {
@@ -6,5 +7,6 @@ pub fn register_containers() -> (resolver::ContainerMapper, resolver::ContainerE
 	let mut extensions = FxHashMap::default();
 
 	wav::wav_container(&mut containers, &mut extensions);
+	yuv::yuv_container(&mut containers, &mut extensions);
 	(containers, extensions)
 }
