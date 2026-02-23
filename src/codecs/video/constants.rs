@@ -75,3 +75,8 @@ pub const DNXHR: CodecId = CodecId::new("dnxhr")
 #[rustfmt::skip]
 pub const VP10: CodecId = CodecId::new("vp10")
   .exts(&["webm", "mkv"]);
+
+// raw video
+#[rustfmt::skip]
+pub const YUV420P: CodecId = CodecId::new("yuv420p")
+  .exts(&["yuv"]);
