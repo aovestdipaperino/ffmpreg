@@ -25,15 +25,14 @@ fn main() -> Result<()> {
 
 	let mut decoder = resolver.decoder_for(&audio)?;
 
-	// Contagem de frames
 	let mut frames = 0;
 	for packet in input.iter_packets() {
 		let packet = packet.report();
-		#[allow(unused_variables)]
 		for frame in decoder.decode(packet)? {
 			frames += 1;
 		}
 	}
+
 	let duration = start.elapsed().as_secs_f64();
 	let fps = frames as f64 / duration;
 
