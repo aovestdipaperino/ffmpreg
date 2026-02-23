@@ -18,15 +18,18 @@ pub struct WavDemuxer<R: MediaRead> {
 	samples_read: u64,
 	packet_count: u64,
 	time: Time,
+	read_buf: Vec<u8>,
 }
 
 impl<R: MediaRead> WavDemuxer<R> {
 	pub fn new(mut reader: R) -> Result<Self> {
-		let (header, metadata, data_size) = Self::read_wav_and_find_data(&mut reader)?;
+		let (header, metadata, remaining_bytes) = Self::read_wav_and_find_data(&mut reader)?;
 		header.validate()?;
 
 		let format = header.to_format();
 		let time = Time::new(1, header.sample_rate)?;
+		let block_align = format.block_align() as u64;
+		let max_chunk = (CHUNK_SIZE_LIMIT as u64 / block_align) * block_align;
 		let codec = format.to_codec_id();
 
 		let audio_format = AudioFormat {
@@ -38,7 +41,6 @@ impl<R: MediaRead> WavDemuxer<R> {
 		let track = Track {
 			id: 0,
 			codec_in: codec,
-			codec_out: codec,
 			timestamp: Timestamp::zero(time),
 			format: TrackFormat::Audio(audio_format),
 		};
@@ -48,10 +50,11 @@ impl<R: MediaRead> WavDemuxer<R> {
 			format,
 			track,
 			metadata,
-			remaining_bytes: data_size,
+			remaining_bytes,
 			samples_read: 0,
 			packet_count: 0,
 			time,
+			read_buf: vec![0u8; max_chunk as usize],
 		})
 	}
 
@@ -177,17 +180,13 @@ impl<R: MediaRead> WavDemuxer<R> {
 			return Ok(None);
 		}
 
-		let block_align = self.format.block_align() as u64;
-		let max_chunk = (CHUNK_SIZE_LIMIT as u64 / block_align) * block_align;
-		let chunk_size = std::cmp::min(self.remaining_bytes, max_chunk) as usize;
-
-		let mut data = vec![0u8; chunk_size];
-		let bytes_read = self.reader.read(&mut data)?;
+		let read_len = std::cmp::min(self.remaining_bytes as usize, self.read_buf.len());
+		let bytes_read = self.reader.read(&mut self.read_buf[..read_len])?;
 		if bytes_read == 0 {
 			return Ok(None);
 		}
 
-		data.truncate(bytes_read);
+		let data = self.read_buf[..bytes_read].to_vec();
 		self.remaining_bytes -= bytes_read as u64;
 
 		let packet = Packet::new(data, 0, self.time).with_pts(self.samples_read as i64);
@@ -217,10 +216,13 @@ impl<R: MediaRead> Demuxer for WavDemuxer<R> {
 	}
 
 	fn duration(&self) -> Option<f64> {
-		let total_samples =
-			self.samples_read + (self.remaining_bytes / self.format.bytes_per_sample() as u64);
-		let sample_rate_hz = self.format.sample_rate.value();
-		Some(total_samples as f64 / sample_rate_hz as f64)
+		let bytes_sample = self.format.bytes_per_sample() as u64;
+
+		let total_samples = self.samples_read + self.remaining_bytes / bytes_sample;
+
+		let rate = self.format.sample_rate.value() as f64;
+
+		Some(total_samples as f64 / rate)
 	}
 
 	fn tracks(&self) -> Tracks {
