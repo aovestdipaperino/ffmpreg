@@ -12,13 +12,12 @@ pub struct Packet {
 	pub time: Time,
 	pub track_id: usize,
 	pub keyframe: bool,
-	pub discard: bool,
 	pub samples: Option<u64>,
 }
 
 impl Packet {
 	pub fn new(data: Vec<u8>, track_id: usize, time: Time) -> Self {
-		Self { data, pts: 0, dts: 0, time, track_id, keyframe: false, discard: false, samples: None }
+		Self { data, pts: 0, dts: 0, time, track_id, keyframe: false, samples: None }
 	}
 
 	pub fn with_pts(mut self, pts: i64) -> Self {
