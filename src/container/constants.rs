@@ -48,6 +48,9 @@ pub const ICO: ContainerId = ContainerId::new("ico");
 pub const HEIF: ContainerId = ContainerId::new("heif");
 pub const AVIF: ContainerId = ContainerId::new("avif");
 
+// raw video
+pub const YUV: ContainerId = ContainerId::new("yuv");
+
 // chunk size limit for demuxer packet reading (20KB)
 // pub const CHUNK_SIZE_LIMIT: usize = 20000;
 pub const CHUNK_SIZE_LIMIT: usize = 65536;
