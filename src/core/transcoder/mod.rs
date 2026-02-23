@@ -1,44 +1,104 @@
-pub mod pool;
+pub mod router;
 
+use crate::core::Selector;
+use crate::core::Track;
+use crate::core::frame::Frame;
 use crate::core::packet::Packet;
-use crate::core::traits::{Decoder, Encoder};
+use crate::core::resampler::AudioResampler;
+use crate::core::resolver::CodecResolver;
+use crate::core::track::{AudioFormat, Format, TrackFormat};
+use crate::core::traits::{Decoder, Encoder, Resampler, Transform};
+use crate::core::transform::TransformGraph;
 use crate::message::Result;
 
-pub use pool::Transcoders;
+pub use router::Router;
 
 pub struct Transcoder {
 	decoder: Box<dyn Decoder>,
 	encoder: Box<dyn Encoder>,
+	resampler: Option<Box<dyn Resampler>>,
+	transforms: TransformGraph,
 }
 
 impl Transcoder {
 	pub fn new(decoder: Box<dyn Decoder>, encoder: Box<dyn Encoder>) -> Self {
-		Self { decoder, encoder }
+		let transforms = TransformGraph::new();
+		Self { decoder, encoder, resampler: None, transforms }
 	}
 
-	pub fn transcode(&mut self, packet: Packet) -> Result<Vec<Packet>> {
-		let mut output = vec![];
-		for frame in self.decoder.decode(packet)? {
-			for packet in self.encoder.encode(frame)? {
-				output.push(packet);
-			}
-		}
-		Ok(output)
-	}
+	pub fn from_track(track: &Track, codecs: &CodecResolver, format: &Format) -> Result<Self> {
+		let decoder = codecs.decoder_for(track)?;
+		let encoder = codecs.encoder_for(track, format)?;
+		let mut transcoder = Self::new(decoder, encoder);
 
-	pub fn flush(&mut self) -> Result<Vec<Packet>> {
-		let mut output = vec![];
-
-		for frame in self.decoder.finish()? {
-			for packet in self.encoder.encode(frame)? {
-				output.push(packet);
+		if let Some(input_format) = track.audio_format() {
+			if let TrackFormat::Audio(output_format) = transcoder.encoder_input_format() {
+				transcoder.needed_resampler(*input_format, output_format);
 			}
 		}
 
+		Ok(transcoder)
+	}
+
+	pub fn with_resampler(mut self, resampler: Box<dyn Resampler>) -> Self {
+		self.resampler = Some(resampler);
+		self
+	}
+
+	pub fn needed_resampler(&mut self, input: AudioFormat, output: AudioFormat) {
+		let resampler = AudioResampler::new(input, output);
+		if resampler.needed() {
+			self.resampler = Some(Box::new(resampler));
+		}
+	}
+
+	pub fn add_transform(&mut self, selector: Selector, transform: Box<dyn Transform>) {
+		self.transforms.add(selector, transform);
+	}
+
+	pub fn encoder_input_format(&self) -> TrackFormat {
+		self.encoder.input_format()
+	}
+
+	pub fn transcode(
+		&mut self,
+		packet: Packet,
+		write_packet: &mut impl FnMut(Packet) -> Result<()>,
+	) -> Result<()> {
+		let frames = self.decoder.decode(packet)?;
+		for frame in frames {
+			let frame = self.process(frame)?;
+			for packet in self.encoder.encode(frame)? {
+				write_packet(packet)?;
+			}
+		}
+		Ok(())
+	}
+
+	pub fn flush(&mut self, write_packet: &mut impl FnMut(Packet) -> Result<()>) -> Result<()> {
+		let frames = self.decoder.finish()?;
+		for frame in frames {
+			let frame = self.process(frame)?;
+			for packet in self.encoder.encode(frame)? {
+				write_packet(packet)?;
+			}
+		}
 		for packet in self.encoder.finish()? {
-			output.push(packet);
+			write_packet(packet)?;
 		}
+		Ok(())
+	}
 
-		Ok(output)
+	fn process(&mut self, frame: Frame) -> Result<Frame> {
+		let frame = self.maybe_resample(frame)?;
+		let frame = self.transforms.apply(frame)?;
+		Ok(frame)
+	}
+
+	fn maybe_resample(&mut self, frame: Frame) -> Result<Frame> {
+		match &mut self.resampler {
+			Some(resampler) => resampler.resample(frame),
+			None => Ok(frame),
+		}
 	}
 }
