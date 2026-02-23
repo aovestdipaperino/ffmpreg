@@ -45,18 +45,24 @@ impl CodecResolver {
 	}
 
 	pub fn decoder_for(&self, track: &Track) -> Result<Box<dyn Decoder>> {
-		let factory = self.entries.get(&track.codec_in).map(|entry| entry.decoder);
-		if let Some(Some(factory)) = factory {
-			return factory(track);
+		let entry = self.entries.get(&track.codec_in);
+		match entry {
+			Some(entry) => match entry.decoder {
+				Some(factory) => factory(track),
+				None => Err(error!("decoder for '{}' is not yet implemented", track.codec_in)),
+			},
+			None => Err(error!("unknown codec '{}'", track.codec_in)),
 		}
-		Err(error!("decoder for '{}' is not supported", track.codec_in))
 	}
 
 	pub fn encoder_for(&self, track: &Track, format: &Format) -> Result<Box<dyn Encoder>> {
-		let factory = self.entries.get(&track.codec_out).map(|entry| entry.encoder);
-		if let Some(Some(factory)) = factory {
-			return factory(track, format);
+		let entry = self.entries.get(&track.codec_out);
+		match entry {
+			Some(entry) => match entry.encoder {
+				Some(factory) => factory(track, format),
+				None => Err(error!("encoder for '{}' is not yet implemented", track.codec_out)),
+			},
+			None => Err(error!("unknown codec '{}'", track.codec_out)),
 		}
-		Err(error!("encoder for '{}' is not supported", track.codec_out))
 	}
 }
