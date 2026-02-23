@@ -1,6 +1,6 @@
-use crate::{core::frame::Frame, message::Result};
+use crate::message::Result;
 
 pub trait Transform: Send {
-	fn apply(&mut self, frame: Frame) -> Result<Frame>;
+	fn apply(&mut self, samples: &mut [f32]) -> Result<()>;
 	fn name(&self) -> &'static str;
 }
